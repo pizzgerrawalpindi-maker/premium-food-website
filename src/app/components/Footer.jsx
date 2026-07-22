@@ -8,12 +8,13 @@ export default function Footer() {
           <div className="w-full h-44 bg-gray-100 rounded-3xl overflow-hidden shadow-lg border border-gray-200 relative">
             <iframe 
               title="Location Map"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3321.3551172822187!2d73.0765117!3d33.6041094!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38df95002642ad41%3A0x133f9e75ab400240!8m2!3d33.6041094!4d73.0765117!5e0!3m2!1sen!2spk!4v1710000000000!5m2!1sen!2spk" 
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1661.5230292616598!2d73.0765117!3d33.604109400000006!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38df95002642ad41%3A0x133f9e75ab400240!2sPizzGer!5e0!3m2!1sen!2s!4v1784721376048!5m2!1sen!2s" 
               width="100%" 
               height="100%" 
               style={{ border: 0 }} 
               allowFullScreen="" 
               loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
               className="grayscale contrast-125 opacity-90"
             ></iframe>
           </div>
