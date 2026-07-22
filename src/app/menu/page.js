@@ -7,7 +7,7 @@ export default function MenuPage() {
   const [cartCount, setCartCount] = useState(0); 
   const navRef = useRef(null);
 
-  // Sync Unique Cart Count on load from localStorage (Unique items count, not quantity sum)
+  // Sync Unique Cart Count on load from localStorage
   useEffect(() => {
     const updateCartCount = () => {
       const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
@@ -37,8 +37,6 @@ export default function MenuPage() {
     }
 
     localStorage.setItem('food_cart', JSON.stringify(savedCart));
-    
-    // Dispatch custom event to sync header and other components instantly
     window.dispatchEvent(new Event('cartUpdated'));
     setCartCount(savedCart.length);
   };
@@ -207,10 +205,10 @@ export default function MenuPage() {
       : price;
 
     return (
-      <div className="group relative bg-white rounded-[2rem] p-3 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5">
+      <div className="group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[2.5rem] p-3 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20">
         
         {/* Top Image Area */}
-        <div className="w-full h-44 sm:h-48 bg-gray-50 rounded-[1.5rem] relative overflow-hidden mb-4 flex items-center justify-center p-2">
+        <div className="w-full h-44 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.5rem] relative overflow-hidden mb-4 flex items-center justify-center p-2">
           <img 
             src={`/${imageNum}.webp`} 
             alt={title} 
@@ -219,10 +217,10 @@ export default function MenuPage() {
           
           <button 
             onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
-            className="absolute top-3 right-3 w-10 h-10 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all z-10"
+            className="absolute top-3 right-3 w-10 h-10 bg-white/80 dark:bg-[#120D0A]/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all z-10"
           >
             <svg 
-              className={`w-5 h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'text-gray-400 fill-none stroke-current stroke-2'}`} 
+              className={`w-5 h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'text-gray-400 dark:text-orange-200/60 fill-none stroke-current stroke-2'}`} 
               viewBox="0 0 24 24" 
               strokeLinecap="round" 
               strokeLinejoin="round"
@@ -234,16 +232,16 @@ export default function MenuPage() {
 
         {/* Bottom Content Area */}
         <div className="flex flex-col flex-grow px-1">
-          <h3 className="font-black text-gray-900 text-lg uppercase tracking-tight leading-none">{title}</h3>
-          <p className="text-sm text-gray-500 mt-2 font-medium leading-snug line-clamp-2 min-h-[40px]">
+          <h3 className="font-black text-gray-900 dark:text-white text-lg uppercase tracking-tight leading-none">{title}</h3>
+          <p className="text-sm text-gray-500 dark:text-orange-200/70 mt-2 font-medium leading-snug line-clamp-2 min-h-[40px]">
             {description}
           </p>
           
           <div className="mt-2 mb-3 min-h-[32px] flex items-end">
             {displayPrice ? (
-               <span className="text-orange-600 font-black text-xl">{displayPrice}</span>
+               <span className="text-orange-600 dark:text-orange-400 font-black text-xl">{displayPrice}</span>
             ) : (
-               <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">Select Size For Price</span>
+               <span className="text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size For Price</span>
             )}
           </div>
 
@@ -253,8 +251,8 @@ export default function MenuPage() {
               <select 
                 value={selectedSize}
                 onChange={(e) => { setSelectedSize(e.target.value); setError(false); }}
-                className={`w-full p-2.5 rounded-xl border-2 text-sm font-bold bg-gray-50 text-gray-700 outline-none transition-colors appearance-none cursor-pointer ${
-                  error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus:border-orange-500 hover:bg-gray-100'
+                className={`w-full p-2.5 rounded-xl border-2 text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
+                  error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#18110e]'
                 }`}
               >
                 <option value="">-- Select Size --</option>
@@ -263,16 +261,16 @@ export default function MenuPage() {
                 ))}
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                <svg className="w-4 h-4 text-gray-400 dark:text-orange-200/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              {error && <span className="absolute -top-5 right-1 text-xs text-red-500 font-black tracking-widest uppercase bg-white px-1">Required!</span>}
+              {error && <span className="absolute -top-5 right-1 text-xs text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
             </div>
           )}
           
           <button 
             onClick={handleAddToCartClick}
-            className={`mt-auto w-full font-bold py-3.5 rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 shadow-md hover:shadow-lg ${
-              addedEffect ? 'bg-green-600 text-white' : 'bg-gray-900 hover:bg-black text-white'
+            className={`mt-auto w-full font-bold py-3.5 rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
+              addedEffect ? 'bg-green-600 text-white' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white'
             }`}
           >
             {addedEffect ? 'Added ✓' : 'Add To Cart'}
@@ -284,11 +282,11 @@ export default function MenuPage() {
 
   const SectionHeader = ({ title, subtitle }) => (
     <div className="flex items-center gap-6 mb-8">
-      <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 whitespace-nowrap">
+      <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
         {title}
       </h2>
-      <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500 to-orange-100 rounded-full opacity-70"></div>
-      {subtitle && <span className="text-gray-400 font-bold tracking-widest text-sm hidden sm:block">{subtitle}</span>}
+      <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500 to-orange-100 dark:to-orange-900/50 rounded-full opacity-70"></div>
+      {subtitle && <span className="text-gray-400 dark:text-orange-200/60 font-bold tracking-widest text-sm hidden sm:block">{subtitle}</span>}
     </div>
   );
 
@@ -297,7 +295,7 @@ export default function MenuPage() {
       <h3 className="text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
         {title}
       </h3>
-      <div className="h-px flex-grow bg-gray-200"></div>
+      <div className="h-px flex-grow bg-gray-200 dark:bg-orange-500/20"></div>
     </div>
   );
 
@@ -322,7 +320,7 @@ export default function MenuPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-gray-900 antialiased relative z-0">
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500">
       
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -336,19 +334,23 @@ export default function MenuPage() {
         .animate-custom-shake { animation: custom-shake 2s infinite ease-in-out; }
       `}} />
 
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-orange-500/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+      {/* Background Ambient High-Intensity Central Orange Light Reflections */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+      <div className="absolute top-[30%] left-10 w-[450px] h-[450px] bg-amber-600/10 rounded-full blur-[130px] pointer-events-none -z-10"></div>
+      <div className="absolute top-[70%] right-10 w-[550px] h-[550px] bg-orange-500/15 rounded-full blur-[160px] pointer-events-none -z-10"></div>
 
-      <div className="sticky top-[70px] md:top-[80px] z-50 w-full bg-white/70 backdrop-blur-2xl border-b border-gray-200 shadow-sm transition-all duration-300">
+      {/* Sticky Categories Navigation Bar */}
+      <div className="sticky top-[70px] md:top-[80px] z-40 w-full bg-white/70 dark:bg-[#120D0A]/85 backdrop-blur-2xl border-b border-gray-200 dark:border-orange-500/20 shadow-sm transition-all duration-300">
         <div ref={navRef} className="max-w-[85rem] mx-auto flex items-center gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-6 lg:px-8 py-4 snap-x">
           {menuSections.map(({ id, label }) => (
             <button
               key={id}
               id={`nav-${id}`}
               onClick={() => handleNavClick(id)}
-              className={`snap-center whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest transition-all duration-300 border-2 ${
+              className={`snap-center whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest transition-all duration-300 border-2 cursor-pointer ${
                 activeSection === id 
                   ? 'bg-orange-600 text-white border-orange-600 shadow-[0_0_15px_rgba(234,88,12,0.4)]' 
-                  : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-100 hover:text-gray-900'
+                  : 'bg-transparent text-gray-500 dark:text-orange-200/70 border-transparent hover:bg-gray-100 dark:hover:bg-[#1c1410] hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               {label}
@@ -360,10 +362,10 @@ export default function MenuPage() {
       <div className="max-w-[85rem] mx-auto space-y-24 pt-12 pb-32 px-4 sm:px-6 lg:px-8 overflow-x-hidden">
         
         <div className="text-center pb-4">
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 mb-4">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-4">
             Our Full Menu
           </h1>
-          <p className="text-gray-500 text-base sm:text-lg font-medium tracking-wide max-w-2xl mx-auto">
+          <p className="text-gray-500 dark:text-orange-200/70 text-base sm:text-lg font-medium tracking-wide max-w-2xl mx-auto">
             Explore all exclusive deals, midnight specials, hand-tossed pizzas, and more.
           </p>
         </div>
@@ -419,7 +421,7 @@ export default function MenuPage() {
         </section>
 
         {/* 6. Pizzas */}
-        <section id="pizzas" className="bg-white/40 p-6 sm:p-10 rounded-[3rem] ring-1 ring-gray-900/5 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.02)] backdrop-blur-3xl scroll-mt-48">
+        <section id="pizzas" className="bg-white/40 dark:bg-[#18110e]/60 p-6 sm:p-10 rounded-[3rem] ring-1 ring-gray-900/5 dark:ring-orange-500/20 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.02)] backdrop-blur-3xl scroll-mt-48">
           <SectionHeader title="Hand-Tossed Pizzas" />
           <div className="space-y-16">
             <div>
@@ -552,13 +554,13 @@ export default function MenuPage() {
       </div>
 
       {/* FLOATING CART BUTTON LINKED TO CART PAGE */}
-      <Link href="/cart" className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-orange-600 to-orange-400 text-white shadow-[0_10px_40px_rgba(234,88,12,0.6)] flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform duration-300 border-4 border-white/20 animate-custom-shake group">
+      <Link href="/cart" className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-orange-600 to-orange-400 text-white shadow-[0_10px_40px_rgba(234,88,12,0.6)] flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform duration-300 border-4 border-white/20 dark:border-[#120D0A]/40 animate-custom-shake group">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 sm:w-10 sm:h-10 fill-current" viewBox="0 0 256 256">
           <path d="M222.14,58.87A8,8,0,0,0,216,56H54.68L49.79,29.14A16,16,0,0,0,34.05,16H16a8,8,0,0,0,0,16h18.05l15.6,85.78A16,16,0,0,0,65.27,128H200a8,8,0,0,0,0-16H65.27a.12.12,0,0,1-.05,0L61.85,96H213a8,8,0,0,0,7.88-6.62l10-56A8,8,0,0,0,222.14,58.87ZM206.63,80H58.94l-3.27-18H210ZM80,184a24,24,0,1,0-24-24A24,24,0,0,0,80,184Zm0-32a8,8,0,1,1-8,8A8,8,0,0,1,80,152Zm96,32a24,24,0,1,0-24-24A24,24,0,0,0,176,184Zm0-32a8,8,0,1,1-8,8A8,8,0,0,1,176,152Z"></path>
         </svg>
         
         {cartCount > 0 && (
-          <span className="absolute top-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-red-600 border-2 border-white text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center transform -translate-y-1/4 translate-x-1/4 shadow-lg group-hover:scale-110 transition-transform">
+          <span className="absolute top-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-red-600 border-2 border-white dark:border-[#120D0A] text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center transform -translate-y-1/4 translate-x-1/4 shadow-lg group-hover:scale-110 transition-transform">
             {cartCount}
           </span>
         )}
