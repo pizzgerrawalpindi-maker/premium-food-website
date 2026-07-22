@@ -23,6 +23,21 @@ export default function MenuPage() {
     };
   }, []);
 
+  // Handle initial hash scroll and active state sync safely on client side
+  useEffect(() => {
+    if (window.location.hash) {
+      const sectionId = window.location.hash.replace('#', '');
+      setActiveSection(sectionId);
+      setTimeout(() => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          const y = element.getBoundingClientRect().top + window.scrollY - 160;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }, 100);
+    }
+  }, []);
+
   // Function to Add Item to LocalStorage WITHOUT redirecting
   const addToCart = (itemData) => {
     const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
