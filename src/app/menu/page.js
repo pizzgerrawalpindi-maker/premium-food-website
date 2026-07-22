@@ -220,10 +220,10 @@ export default function MenuPage() {
       : price;
 
     return (
-      <div className="group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[1.8rem] sm:rounded-[2.5rem] p-2.5 sm:p-3 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20">
+      <div className="group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[1.8rem] sm:rounded-[2.5rem] p-3 sm:p-4 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20 w-full max-w-sm mx-auto">
         
         {/* Top Image Area */}
-        <div className="w-full h-32 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.2rem] sm:rounded-[1.5rem] relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-2">
+        <div className="w-full h-36 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.2rem] sm:rounded-[1.5rem] relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-2">
           <img 
             src={`/${imageNum}.webp`} 
             alt={title} 
@@ -247,16 +247,16 @@ export default function MenuPage() {
 
         {/* Bottom Content Area */}
         <div className="flex flex-col flex-grow px-1">
-          <h3 className="font-black text-gray-900 dark:text-white text-sm sm:text-lg uppercase tracking-tight leading-snug">{title}</h3>
-          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-orange-200/70 mt-1 sm:mt-2 font-medium leading-tight sm:leading-snug line-clamp-2 min-h-[30px] sm:min-h-[40px]">
+          <h3 className="font-black text-gray-900 dark:text-white text-xs sm:text-lg uppercase tracking-tight leading-snug">{title}</h3>
+          <p className="text-[10px] sm:text-sm text-gray-500 dark:text-orange-200/70 mt-1 sm:mt-2 font-medium leading-tight sm:leading-snug line-clamp-2 min-h-[28px] sm:min-h-[40px]">
             {description}
           </p>
           
-          <div className="mt-1 sm:mt-2 mb-2 sm:mb-3 min-h-[26px] sm:min-h-[32px] flex items-end">
+          <div className="mt-1 sm:mt-2 mb-2 sm:mb-3 min-h-[24px] sm:min-h-[32px] flex items-end">
             {displayPrice ? (
-               <span className="text-orange-600 dark:text-orange-400 font-black text-base sm:text-xl">{displayPrice}</span>
+               <span className="text-orange-600 dark:text-orange-400 font-black text-sm sm:text-xl">{displayPrice}</span>
             ) : (
-               <span className="text-[10px] sm:text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size</span>
+               <span className="text-[9px] sm:text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size</span>
             )}
           </div>
 
@@ -266,7 +266,7 @@ export default function MenuPage() {
               <select 
                 value={selectedSize}
                 onChange={(e) => { setSelectedSize(e.target.value); setError(false); }}
-                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
+                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-[11px] sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
                   error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#18110e]'
                 }`}
               >
@@ -278,13 +278,13 @@ export default function MenuPage() {
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 dark:text-orange-200/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              {error && <span className="absolute -top-4 right-1 text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
+              {error && <span className="absolute -top-4 right-1 text-[9px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
             </div>
           )}
           
           <button 
             onClick={handleAddToCartClick}
-            className={`mt-auto w-full font-bold py-2.5 sm:py-3.5 rounded-xl uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
+            className={`mt-auto w-full font-bold py-2.5 sm:py-3.5 rounded-xl uppercase tracking-widest text-[11px] sm:text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
               addedEffect ? 'bg-green-600 text-white' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white'
             }`}
           >
@@ -297,7 +297,7 @@ export default function MenuPage() {
 
   const SectionHeader = ({ title, subtitle }) => (
     <div className="flex items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
-      <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
+      <h2 className="text-xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
         {title}
       </h2>
       <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500 to-orange-100 dark:to-orange-900/50 rounded-full opacity-70"></div>
@@ -307,7 +307,7 @@ export default function MenuPage() {
 
   const SubSectionHeader = ({ title }) => (
     <div className="flex items-center gap-4 mb-4 sm:mb-6 mt-4">
-      <h3 className="text-lg sm:text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
+      <h3 className="text-base sm:text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
         {title}
       </h3>
       <div className="h-px flex-grow bg-gray-200 dark:bg-orange-500/20"></div>
@@ -335,7 +335,7 @@ export default function MenuPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500">
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500 overflow-x-hidden">
       
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -349,7 +349,7 @@ export default function MenuPage() {
         .animate-custom-shake { animation: custom-shake 2s infinite ease-in-out; }
       `}} />
 
-      {/* Background Ambient High-Intensity Central Orange Light Reflections */}
+      {/* Background Ambient Lights */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px] pointer-events-none -z-10"></div>
       <div className="absolute top-[30%] left-10 w-[450px] h-[450px] bg-amber-600/10 rounded-full blur-[130px] pointer-events-none -z-10"></div>
       <div className="absolute top-[70%] right-10 w-[550px] h-[550px] bg-orange-500/15 rounded-full blur-[160px] pointer-events-none -z-10"></div>
@@ -374,13 +374,13 @@ export default function MenuPage() {
         </div>
       </div>
 
-      <div className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-12 pb-32 px-3 sm:px-6 lg:px-8 overflow-x-hidden">
+      <div className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-12 pb-32 px-3 sm:px-6 lg:px-8 w-full">
         
         <div className="text-center pb-2 sm:pb-4">
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-3 sm:mb-4">
+          <h1 className="text-3xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-3 sm:mb-4">
             Our Full Menu
           </h1>
-          <p className="text-gray-500 dark:text-orange-200/70 text-sm sm:text-lg font-medium tracking-wide max-w-2xl mx-auto px-2">
+          <p className="text-gray-500 dark:text-orange-200/70 text-xs sm:text-lg font-medium tracking-wide max-w-2xl mx-auto px-2">
             Explore all exclusive deals, midnight specials, hand-tossed pizzas, and more.
           </p>
         </div>
