@@ -67,6 +67,13 @@ export default function CartPage() {
       alert("Your cart is empty! Please add items from the menu first.");
       return;
     }
+
+    // Minimum Order Amount Validation (Rs. 600)
+    if (subtotal < 600) {
+      alert("Minimum order amount must be at least Rs. 600 to proceed.");
+      return;
+    }
+
     if (!name.trim()) newErrors.name = true;
     if (!phone || phone.length !== 10) newErrors.phone = true;
     if (!address.trim()) newErrors.address = true;
