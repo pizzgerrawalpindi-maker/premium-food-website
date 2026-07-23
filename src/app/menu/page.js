@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 
 export default function MenuPage() {
@@ -7,11 +7,15 @@ export default function MenuPage() {
   const [cartCount, setCartCount] = useState(0); 
   const navRef = useRef(null);
 
-  // Sync Unique Cart Count on load from localStorage
+  // Sync Unique Cart Count on load from localStorage safely
   useEffect(() => {
     const updateCartCount = () => {
-      const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
-      setCartCount(savedCart.length);
+      try {
+        const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
+        setCartCount(savedCart.length);
+      } catch (e) {
+        setCartCount(0);
+      }
     };
     updateCartCount();
     window.addEventListener('storage', updateCartCount);
@@ -23,132 +27,130 @@ export default function MenuPage() {
     };
   }, []);
 
-  // Handle initial hash scroll and active state sync safely on client side
+  // Handle initial hash scroll safely on client side
   useEffect(() => {
-    if (window.location.hash) {
+    if (typeof window !== 'undefined' && window.location.hash) {
       const sectionId = window.location.hash.replace('#', '');
       setActiveSection(sectionId);
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         const element = document.getElementById(sectionId);
         if (element) {
-          const y = element.getBoundingClientRect().top + window.scrollY - 160;
+          const y = element.getBoundingClientRect().top + window.scrollY - 140;
           window.scrollTo({ top: y, behavior: 'smooth' });
         }
-      }, 100);
+      });
     }
-  }, []);
-
-  // Force a correct, non-zoomed-out mobile viewport (fixes pages loading "zoomed out"
-  // on phones). This is a safety net in case app/layout.js isn't already setting one —
-  // see the chat reply for the cleaner, recommended way to do this in layout.js.
-  useEffect(() => {
-    let tag = document.querySelector('meta[name="viewport"]');
-    if (!tag) {
-      tag = document.createElement('meta');
-      tag.name = 'viewport';
-      document.head.appendChild(tag);
-    }
-    tag.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }, []);
 
   // Function to Add Item to LocalStorage WITHOUT redirecting
   const addToCart = (itemData) => {
-    const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
-    const existingIndex = savedCart.findIndex(
-      item => item.title === itemData.title && item.size === itemData.size
-    );
+    try {
+      const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
+      const existingIndex = savedCart.findIndex(
+        item => item.title === itemData.title && item.size === itemData.size
+      );
 
-    if (existingIndex > -1) {
-      savedCart[existingIndex].quantity += 1;
-    } else {
-      savedCart.push({ ...itemData, quantity: 1 });
+      if (existingIndex > -1) {
+        savedCart[existingIndex].quantity += 1;
+      } else {
+        savedCart.push({ ...itemData, quantity: 1 });
+      }
+
+      localStorage.setItem('food_cart', JSON.stringify(savedCart));
+      window.dispatchEvent(new Event('cartUpdated'));
+      setCartCount(savedCart.length);
+    } catch (e) {
+      console.error("Cart update failed", e);
     }
-
-    localStorage.setItem('food_cart', JSON.stringify(savedCart));
-    window.dispatchEvent(new Event('cartUpdated'));
-    setCartCount(savedCart.length);
   };
 
   // --- PRICING ARRAYS & CONFIGS ---
-  const standardPricing = [
+  const standardPricing = useMemo(() => [
     { size: 'Small', price: '689' },
     { size: 'Regular', price: '1149' },
     { size: 'Large', price: '1599' },
     { size: 'Family', price: '2199' }
-  ];
+  ], []);
   
-  const crustPricing = [
+  const crustPricing = useMemo(() => [
     { size: 'Regular', price: '1549' },
     { size: 'Large', price: '2049' },
     { size: 'Family', price: '3149' }
-  ];
+  ], []);
 
-  const specialPricing = [
+  const specialPricing = useMemo(() => [
     { size: 'Small', price: '899' },
     { size: 'Regular', price: '1449' },
     { size: 'Large', price: '1899' },
     { size: 'Family', price: '2799' }
-  ];
+  ], []);
 
-  const doubleStackedPricing = [
+  const doubleStackedPricing = useMemo(() => [
     { size: 'Small', price: '1349' },
     { size: 'Regular', price: '1999' },
     { size: 'Large', price: '2749' },
     { size: 'Family', price: '3799' }
-  ];
+  ], []);
 
-  const shawarmaPricing2and3 = [
+  const shawarmaPricing2and3 = useMemo(() => [
     { size: 'Normal', price: '299' },
     { size: 'Large', price: '389' }
-  ];
-  const shawarmaPricing4 = [
+  ], []);
+
+  const shawarmaPricing4 = useMemo(() => [
     { size: 'Normal', price: '299' },
     { size: 'Large', price: '369' }
-  ];
-  const shawarmaPricing5 = [
+  ], []);
+
+  const shawarmaPricing5 = useMemo(() => [
     { size: 'Normal', price: '139' },
     { size: 'Large', price: '169' }
-  ];
+  ], []);
 
-  const friesPricing1 = [
+  const friesPricing1 = useMemo(() => [
     { size: 'Small', price: '199' },
     { size: 'Large', price: '249' },
     { size: 'Family', price: '299' }
-  ];
-  const friesPricing2 = [
+  ], []);
+
+  const friesPricing2 = useMemo(() => [
     { size: 'Small', price: '229' },
     { size: 'Large', price: '279' },
     { size: 'Family', price: '329' }
-  ];
-  const friesPricing3 = [
+  ], []);
+
+  const friesPricing3 = useMemo(() => [
     { size: 'Small', price: '269' },
     { size: 'Large', price: '329' },
     { size: 'Family', price: '399' }
-  ];
-  const friesPricing4 = [
+  ], []);
+
+  const friesPricing4 = useMemo(() => [
     { size: 'Small', price: '349' },
     { size: 'Large', price: '599' }
-  ];
+  ], []);
 
-  const pastaPricing1 = [
+  const pastaPricing1 = useMemo(() => [
     { size: 'Small', price: '500' },
     { size: 'Large', price: '850' }
-  ];
-  const pastaPricing2and3 = [
+  ], []);
+
+  const pastaPricing2and3 = useMemo(() => [
     { size: 'Small', price: '550' },
     { size: 'Large', price: '1000' }
-  ];
+  ], []);
 
-  const siderPricingFirst = [
+  const siderPricingFirst = useMemo(() => [
     { size: '6 Pcs', price: '349' },
     { size: '12 Pcs', price: '699' }
-  ];
-  const siderPricingRest = [
+  ], []);
+
+  const siderPricingRest = useMemo(() => [
     { size: '6 Pcs', price: '369' },
     { size: '12 Pcs', price: '699' }
-  ];
+  ], []);
 
-  const menuSections = [
+  const menuSections = useMemo(() => [
     { id: 'exclusive-deals', label: 'Exclusive Deals' },
     { id: 'midnight-deals', label: 'Midnight Deals' },
     { id: 'birthday-offers', label: 'Birthday Offers' },
@@ -162,17 +164,18 @@ export default function MenuPage() {
     { id: 'sauces', label: 'Sauces' },
     { id: 'side-orders', label: 'Side Orders' },
     { id: 'drinks', label: 'Drinks' }
-  ];
+  ], []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const visibleSection = entries.find((entry) => entry.isIntersecting);
-        if (visibleSection) {
-          setActiveSection(visibleSection.target.id);
-        }
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        });
       },
-      { rootMargin: '-20% 0px -75% 0px', threshold: 0 }
+      { rootMargin: '-15% 0px -70% 0px', threshold: 0.05 }
     );
 
     menuSections.forEach(({ id }) => {
@@ -181,7 +184,7 @@ export default function MenuPage() {
     });
 
     return () => observer.disconnect();
-  }, []);
+  }, [menuSections]);
 
   useEffect(() => {
     const activeTab = document.getElementById(`nav-${activeSection}`);
@@ -193,7 +196,7 @@ export default function MenuPage() {
   const handleNavClick = (id) => {
     const element = document.getElementById(id);
     if (element) {
-      const y = element.getBoundingClientRect().top + window.scrollY - 160;
+      const y = element.getBoundingClientRect().top + window.scrollY - 140;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
   };
@@ -212,9 +215,10 @@ export default function MenuPage() {
       setError(false);
 
       const finalSize = pricingOptions ? selectedSize : 'Standard';
-      const finalPrice = pricingOptions 
-        ? parseInt(pricingOptions.find(p => p.size === selectedSize).price) 
-        : parseInt(price.replace('Rs. ', '').replace(',', ''));
+      const foundPriceObj = pricingOptions ? pricingOptions.find(p => p.size === selectedSize) : null;
+      const finalPrice = foundPriceObj 
+        ? parseInt(foundPriceObj.price, 10) 
+        : parseInt(price.replace('Rs. ', '').replace(',', ''), 10);
 
       addToCart({
         id: `${title}-${finalSize}`,
@@ -229,26 +233,29 @@ export default function MenuPage() {
     };
 
     const displayPrice = pricingOptions
-      ? (selectedSize ? `Rs. ${pricingOptions.find(p => p.size === selectedSize).price}` : null)
+      ? (selectedSize ? `Rs. ${pricingOptions.find(p => p.size === selectedSize)?.price}` : null)
       : price;
 
     return (
-      <div className={`group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[1.8rem] sm:rounded-[2.5rem] p-2.5 sm:p-3 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20 ${className}`}>
+      <div className={`group relative bg-white/90 dark:bg-[#18110e]/80 backdrop-blur-xl rounded-3xl p-3 sm:p-4 flex flex-col shadow-xl shadow-black/[0.03] dark:shadow-orange-950/20 hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1 transition-all duration-300 border border-gray-100 dark:border-orange-500/10 ${className}`}>
         
-        {/* Top Image Area */}
-        <div className="w-full h-32 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.2rem] sm:rounded-[1.5rem] relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-2">
+        {/* Top Image Container */}
+        <div className="w-full h-36 sm:h-48 bg-gradient-to-b from-gray-50 to-gray-100/60 dark:from-[#120D0A] dark:to-[#1c1410] rounded-2xl relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-3">
           <img 
             src={`/${imageNum}.webp`} 
             alt={title} 
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out" 
+            loading="lazy"
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500 ease-out drop-shadow-md" 
           />
           
           <button 
+            type="button"
             onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
-            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 w-8 h-8 sm:w-10 sm:h-10 bg-white/80 dark:bg-[#120D0A]/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all z-10"
+            aria-label="Save to favorites"
+            className="absolute top-3 right-3 w-9 h-9 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all text-gray-400 dark:text-orange-200"
           >
             <svg 
-              className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'text-gray-400 dark:text-orange-200/60 fill-none stroke-current stroke-2'}`} 
+              className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'fill-none stroke-current stroke-[2]'}`} 
               viewBox="0 0 24 24" 
               strokeLinecap="round" 
               strokeLinejoin="round"
@@ -258,50 +265,51 @@ export default function MenuPage() {
           </button>
         </div>
 
-        {/* Bottom Content Area */}
+        {/* Content Section */}
         <div className="flex flex-col flex-grow px-1">
-          <h3 className="font-black text-gray-900 dark:text-white text-sm sm:text-lg uppercase tracking-tight leading-snug">{title}</h3>
-          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-orange-200/70 mt-1 sm:mt-2 font-medium leading-tight sm:leading-snug line-clamp-2 min-h-[30px] sm:min-h-[40px]">
+          <h3 className="font-extrabold text-gray-900 dark:text-white text-sm sm:text-base uppercase tracking-tight line-clamp-1">{title}</h3>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-orange-200/60 mt-1 font-medium leading-relaxed line-clamp-2 min-h-[32px]">
             {description}
           </p>
           
-          <div className="mt-1 sm:mt-2 mb-2 sm:mb-3 min-h-[26px] sm:min-h-[32px] flex items-end">
+          <div className="mt-2 mb-3 min-h-[28px] flex items-end">
             {displayPrice ? (
-               <span className="text-orange-600 dark:text-orange-400 font-black text-base sm:text-xl">{displayPrice}</span>
+               <span className="text-orange-600 dark:text-orange-400 font-black text-base sm:text-lg">{displayPrice}</span>
             ) : (
-               <span className="text-[10px] sm:text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size</span>
+               <span className="text-xs font-bold text-orange-500/70 uppercase tracking-wider">Choose size below</span>
             )}
           </div>
 
-          {/* Size Selector */}
+          {/* Dynamic Size Selector */}
           {pricingOptions && (
-            <div className="mb-2 sm:mb-3 relative">
+            <div className="mb-3 relative">
               <select 
                 value={selectedSize}
                 onChange={(e) => { setSelectedSize(e.target.value); setError(false); }}
-                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
-                  error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#18110e]'
+                className={`w-full p-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-800 dark:text-orange-100 outline-none transition-all appearance-none cursor-pointer ${
+                  error ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-200 dark:border-orange-500/20 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#1c1410]'
                 }`}
               >
-                <option value="">-- Size --</option>
+                <option value="">-- Select Size --</option>
                 {pricingOptions.map(opt => (
-                  <option key={opt.size} value={opt.size}>{opt.size} ({opt.price})</option>
+                  <option key={opt.size} value={opt.size}>{opt.size} — Rs. {opt.price}</option>
                 ))}
               </select>
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 dark:text-orange-200/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              {error && <span className="absolute -top-4 right-1 text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
+              {error && <span className="absolute -top-3.5 right-2 text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1.5 py-0.5 rounded border border-red-200">Required!</span>}
             </div>
           )}
           
           <button 
+            type="button"
             onClick={handleAddToCartClick}
-            className={`mt-auto w-full font-bold py-2.5 sm:py-3.5 rounded-xl uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
-              addedEffect ? 'bg-green-600 text-white' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white'
+            className={`mt-auto w-full font-bold py-3 rounded-2xl uppercase tracking-wider text-xs sm:text-sm transition-all active:scale-95 shadow-md cursor-pointer ${
+              addedEffect ? 'bg-emerald-600 text-white shadow-emerald-600/30' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-500 text-white shadow-orange-600/10'
             }`}
           >
-            {addedEffect ? 'Added ✓' : 'Add To Cart'}
+            {addedEffect ? 'Added to Cart ✓' : 'Add To Cart'}
           </button>
         </div>
       </div>
@@ -310,30 +318,27 @@ export default function MenuPage() {
 
   const SectionHeader = ({ title, subtitle }) => (
     <div className="flex items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
-      <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
+      <h2 className="text-xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight text-gray-900 dark:text-white whitespace-nowrap">
         {title}
       </h2>
-      <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500 to-orange-100 dark:to-orange-900/50 rounded-full opacity-70"></div>
-      {subtitle && <span className="text-gray-400 dark:text-orange-200/60 font-bold tracking-widest text-xs sm:text-sm hidden sm:block">{subtitle}</span>}
+      <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500/80 via-orange-500/20 to-transparent rounded-full"></div>
+      {subtitle && <span className="text-orange-600 dark:text-orange-400 font-extrabold tracking-widest text-xs sm:text-sm bg-orange-500/10 px-3 py-1 rounded-full">{subtitle}</span>}
     </div>
   );
 
   const SubSectionHeader = ({ title }) => (
-    <div className="flex items-center gap-4 mb-4 sm:mb-6 mt-4">
-      <h3 className="text-lg sm:text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
+    <div className="flex items-center gap-4 mb-4 sm:mb-6 mt-6">
+      <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-wide text-orange-600 dark:text-orange-400">
         {title}
       </h3>
       <div className="h-px flex-grow bg-gray-200 dark:bg-orange-500/20"></div>
     </div>
   );
 
-  // When a section has an odd number of items, the last card is alone in its row
-  // on mobile (2-col grid) and would otherwise leave empty space beside it.
-  // These classes span it across both columns and center it at normal card width.
   const centerLastMd = 'max-md:col-span-2 max-md:max-w-[calc(50%-0.375rem)] max-md:mx-auto';
   const centerLastLg = 'max-lg:col-span-2 max-lg:max-w-[calc(50%-0.375rem)] max-lg:mx-auto';
 
-  const imgOffset = {
+  const imgOffset = useMemo(() => ({
     exclusive: 17,
     midnight: 29,
     birthday: 35,
@@ -351,63 +356,65 @@ export default function MenuPage() {
     sauces: 100,
     sides: 105,
     drinks: 112
-  };
+  }), []);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500">
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0D0907] text-gray-900 dark:text-gray-100 antialiased relative selection:bg-orange-500 selection:text-white transition-colors duration-500">
       
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes custom-shake {
           0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-12deg) scale(1.1); }
-          50% { transform: rotate(12deg) scale(1.1); }
-          75% { transform: rotate(-12deg) scale(1.1); }
+          20% { transform: rotate(-8deg) scale(1.05); }
+          40% { transform: rotate(8deg) scale(1.05); }
+          60% { transform: rotate(-6deg); }
+          80% { transform: rotate(6deg); }
         }
-        .animate-custom-shake { animation: custom-shake 2s infinite ease-in-out; }
+        .animate-custom-shake { animation: custom-shake 3s infinite ease-in-out; }
       `}} />
 
-      {/* Background Ambient High-Intensity Central Orange Light Reflections */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px] pointer-events-none -z-10"></div>
-      <div className="absolute top-[30%] left-10 w-[450px] h-[450px] bg-amber-600/10 rounded-full blur-[130px] pointer-events-none -z-10"></div>
-      <div className="absolute top-[70%] right-10 w-[550px] h-[550px] bg-orange-500/15 rounded-full blur-[160px] pointer-events-none -z-10"></div>
+      {/* Modern Ambient Background Glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[500px] bg-gradient-to-b from-orange-500/15 to-transparent blur-[120px] pointer-events-none -z-10"></div>
 
       {/* Sticky Categories Navigation Bar */}
-      <div className="sticky top-[70px] md:top-[80px] z-40 w-full bg-white/70 dark:bg-[#120D0A]/85 backdrop-blur-2xl border-b border-gray-200 dark:border-orange-500/20 shadow-sm transition-all duration-300">
-        <div ref={navRef} className="max-w-[85rem] mx-auto flex items-center gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-6 lg:px-8 py-3 sm:py-4 snap-x">
+      <nav className="sticky top-0 z-40 w-full bg-white/80 dark:bg-[#0D0907]/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-orange-500/15 shadow-sm transition-all duration-300">
+        <div ref={navRef} className="max-w-[85rem] mx-auto flex items-center gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-6 lg:px-8 py-3 snap-x">
           {menuSections.map(({ id, label }) => (
             <button
               key={id}
               id={`nav-${id}`}
+              type="button"
               onClick={() => handleNavClick(id)}
-              className={`snap-center whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold uppercase tracking-widest transition-all duration-300 border-2 cursor-pointer ${
+              className={`snap-center whitespace-nowrap px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeSection === id 
-                  ? 'bg-orange-600 text-white border-orange-600 shadow-[0_0_15px_rgba(234,88,12,0.4)]' 
-                  : 'bg-transparent text-gray-500 dark:text-orange-200/70 border-transparent hover:bg-gray-100 dark:hover:bg-[#1c1410] hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30 scale-105' 
+                  : 'bg-transparent text-gray-600 dark:text-orange-200/70 hover:bg-gray-100 dark:hover:bg-[#18110e] hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               {label}
             </button>
           ))}
         </div>
-      </div>
+      </nav>
 
-      <div className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-12 pb-32 px-3 sm:px-6 lg:px-8 overflow-x-hidden">
+      {/* Main Content Area */}
+      <main className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-16 pb-36 px-4 sm:px-6 lg:px-8">
         
-        <div className="text-center pb-2 sm:pb-4">
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-3 sm:mb-4">
-            Our Full Menu
+        {/* Header Intro */}
+        <header className="text-center pb-2">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-gray-900 dark:text-white mb-3">
+            Our Interactive <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">Menu</span>
           </h1>
-          <p className="text-gray-500 dark:text-orange-200/70 text-sm sm:text-lg font-medium tracking-wide max-w-2xl mx-auto px-2">
-            Explore all exclusive deals, midnight specials, hand-tossed pizzas, and more.
+          <p className="text-gray-500 dark:text-orange-200/70 text-sm sm:text-base font-medium max-w-xl mx-auto">
+            Discover freshly prepared exclusive deals, hand-tossed crust pizzas, burgers, and delightful midnight cravings.
           </p>
-        </div>
+        </header>
 
         {/* 1. Exclusive Deals */}
-        <section id="exclusive-deals" className="scroll-mt-48">
+        <section id="exclusive-deals" className="scroll-mt-32">
           <SectionHeader title="Exclusive Deals" subtitle="12 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(12)].map((_, i) => (
               <MenuCard key={i} imageNum={imgOffset.exclusive + i} title={`Deal 0${i+1}`} description="1x Zinger Burger + 1x Regular Fries + 1x Regular Drink" price="Rs. 850" />
             ))}
@@ -415,9 +422,9 @@ export default function MenuPage() {
         </section>
 
         {/* 2. Midnight Deals */}
-        <section id="midnight-deals" className="scroll-mt-48">
+        <section id="midnight-deals" className="scroll-mt-32">
           <SectionHeader title="Midnight Deals" subtitle="6 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(6)].map((_, i) => (
               <MenuCard key={i} imageNum={imgOffset.midnight + i} title={`Midnight ${i+1}`} description="2x Loaded Shawarmas + 2x Mint Margaritas" price="Rs. 1,200" />
             ))}
@@ -425,9 +432,9 @@ export default function MenuPage() {
         </section>
 
         {/* 3. Birthday Offers */}
-        <section id="birthday-offers" className="scroll-mt-48">
+        <section id="birthday-offers" className="scroll-mt-32">
           <SectionHeader title="Birthday Offers" subtitle="2 EXCLUSIVE" />
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 sm:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {[...Array(2)].map((_, i) => (
               <MenuCard key={i} imageNum={imgOffset.birthday + i} title={`Birthday Special ${i+1}`} description="4x Zinger Burgers + 2x Large Fries + 1.5L Cold Drink" price="Rs. 2,999" />
             ))}
@@ -435,9 +442,9 @@ export default function MenuPage() {
         </section>
 
         {/* 4. Event Section */}
-        <section id="event-section" className="scroll-mt-48">
+        <section id="event-section" className="scroll-mt-32">
           <SectionHeader title="Event Section" subtitle="9 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(9)].map((_, i, arr) => (
               <MenuCard key={i} imageNum={imgOffset.event + i} title={`Platter 0${i+1}`} description="Assorted wings, nuggets, and fries platter for the group." price="Rs. 1,500" className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
             ))}
@@ -445,9 +452,9 @@ export default function MenuPage() {
         </section>
 
         {/* 5. Burgers */}
-        <section id="burgers" className="scroll-mt-48">
+        <section id="burgers" className="scroll-mt-32">
           <SectionHeader title="Signature Burgers" subtitle="8 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(8)].map((_, i) => (
               <MenuCard key={i} imageNum={imgOffset.burgers + i} title={`Zinger Burger ${i+1}`} description="Crispy chicken fillet with secret mayo and fresh iceberg." price="Rs. 450" />
             ))}
@@ -455,12 +462,12 @@ export default function MenuPage() {
         </section>
 
         {/* 6. Pizzas */}
-        <section id="pizzas" className="bg-white/40 dark:bg-[#18110e]/60 p-4 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] ring-1 ring-gray-900/5 dark:ring-orange-500/20 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.02)] backdrop-blur-3xl scroll-mt-48">
+        <section id="pizzas" className="bg-white/50 dark:bg-[#140F0C]/60 p-4 sm:p-8 md:p-10 rounded-[2.5rem] border border-gray-200/60 dark:border-orange-500/15 backdrop-blur-2xl scroll-mt-32 shadow-xl">
           <SectionHeader title="Hand-Tossed Pizzas" />
-          <div className="space-y-12 sm:space-y-16">
+          <div className="space-y-12">
             <div>
               <SubSectionHeader title="Standard Range (11)" />
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                 {[...Array(11)].map((_, i, arr) => (
                   <MenuCard key={i} imageNum={imgOffset.pizzaStd + i} title={`Fajita Pizza ${i+1}`} description="Chicken fajita, onions, capsicum & loads of mozzarella." pricingOptions={standardPricing} className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
                 ))}
@@ -468,7 +475,7 @@ export default function MenuPage() {
             </div>
             <div>
               <SubSectionHeader title="Pizzger Crust Range (4)" />
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 {[...Array(4)].map((_, i) => (
                   <MenuCard key={i} imageNum={imgOffset.pizzaCrust + i} title={`Stuffed Crust ${i+1}`} description="Kabob stuffed crust with malai boti topping." pricingOptions={crustPricing} />
                 ))}
@@ -476,7 +483,7 @@ export default function MenuPage() {
             </div>
             <div>
               <SubSectionHeader title="Pizzger Special Range (9)" />
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                 {[...Array(9)].map((_, i, arr) => (
                   <MenuCard key={i} imageNum={imgOffset.pizzaSpec + i} title={`Crown Crust ${i+1}`} description="Special crown crust filled with chicken chunks and sauce." pricingOptions={specialPricing} className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
                 ))}
@@ -484,13 +491,13 @@ export default function MenuPage() {
             </div>
             <div>
               <SubSectionHeader title="Double Stacked (1)" />
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                 <MenuCard imageNum={imgOffset.pizzaDbl} title="Double Stacked Pro" description="Two layers of pizza magic with extra cheese." pricingOptions={doubleStackedPricing} className={centerLastMd} />
               </div>
             </div>
             <div>
               <SubSectionHeader title="All Time Favourites (4)" />
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 <MenuCard imageNum={imgOffset.pizzaFav} title="Classic Tikka 1" description="Traditional chicken tikka flavor with premium cheese." price="Rs. 1449" />
                 <MenuCard imageNum={imgOffset.pizzaFav + 1} title="Classic Tikka 2" description="Traditional chicken tikka flavor with premium cheese." price="Rs. 2349" />
                 <MenuCard imageNum={imgOffset.pizzaFav + 2} title="Classic Tikka 3" description="Traditional chicken tikka flavor with premium cheese." price="Rs. 3299" />
@@ -501,9 +508,9 @@ export default function MenuPage() {
         </section>
 
         {/* 7. Shawarmas */}
-        <section id="shawarmas" className="scroll-mt-48">
+        <section id="shawarmas" className="scroll-mt-32">
           <SectionHeader title="Authentic Shawarmas" subtitle="5 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.shawarmas} title="Loaded Shawarma 1" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." price="Rs. 399" />
             <MenuCard imageNum={imgOffset.shawarmas + 1} title="Loaded Shawarma 2" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing2and3} />
             <MenuCard imageNum={imgOffset.shawarmas + 2} title="Loaded Shawarma 3" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing2and3} />
@@ -513,9 +520,9 @@ export default function MenuPage() {
         </section>
 
         {/* 8. Parathas */}
-        <section id="parathas" className="scroll-mt-48">
+        <section id="parathas" className="scroll-mt-32">
           <SectionHeader title="Hot Parathas" subtitle="5 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.parathas} title="Zinger Paratha 1" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 589" />
             <MenuCard imageNum={imgOffset.parathas + 1} title="Zinger Paratha 2" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 389" />
             <MenuCard imageNum={imgOffset.parathas + 2} title="Zinger Paratha 3" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 389" />
@@ -525,9 +532,9 @@ export default function MenuPage() {
         </section>
 
         {/* 9. Fries */}
-        <section id="fries" className="scroll-mt-48">
+        <section id="fries" className="scroll-mt-32">
           <SectionHeader title="Loaded Fries" subtitle="4 ITEMS" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.fries} title="Pizza Fries 1" description="Crispy fries topped with pizza sauce and cheese." pricingOptions={friesPricing1} />
             <MenuCard imageNum={imgOffset.fries + 1} title="Pizza Fries 2" description="Crispy fries topped with pizza sauce and cheese." pricingOptions={friesPricing2} />
             <MenuCard imageNum={imgOffset.fries + 2} title="Pizza Fries 3" description="Crispy fries topped with pizza sauce and cheese." pricingOptions={friesPricing3} />
@@ -536,9 +543,9 @@ export default function MenuPage() {
         </section>
 
         {/* 10. Creamy Pasta */}
-        <section id="pasta" className="scroll-mt-48">
+        <section id="pasta" className="scroll-mt-32">
           <SectionHeader title="Creamy Pasta" subtitle="3 ITEMS" />
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.pasta} title="Alfredo Pasta 1" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing1} />
             <MenuCard imageNum={imgOffset.pasta + 1} title="Alfredo Pasta 2" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing2and3} />
             <MenuCard imageNum={imgOffset.pasta + 2} title="Alfredo Pasta 3" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing2and3} className={centerLastLg} />
@@ -546,9 +553,9 @@ export default function MenuPage() {
         </section>
 
         {/* 11. Sauces */}
-        <section id="sauces" className="scroll-mt-48">
+        <section id="sauces" className="scroll-mt-32">
           <SectionHeader title="Dips & Sauces" subtitle="5 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.sauces} title="Garlic Mayo Dip 1" description="Homemade garlic mayo sauce." price="Rs. 70" />
             <MenuCard imageNum={imgOffset.sauces + 1} title="Garlic Mayo Dip 2" description="Homemade garlic mayo sauce." price="Rs. 70" />
             <MenuCard imageNum={imgOffset.sauces + 2} title="Garlic Mayo Dip 3" description="Homemade garlic mayo sauce." price="Rs. 80" />
@@ -558,9 +565,9 @@ export default function MenuPage() {
         </section>
 
         {/* 12. Side Orders */}
-        <section id="side-orders" className="scroll-mt-48">
+        <section id="side-orders" className="scroll-mt-32">
           <SectionHeader title="Side Orders" subtitle="7 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.sides} title="Hot Wings 1" description="Spicy and crispy hot wings." pricingOptions={siderPricingFirst} />
             <MenuCard imageNum={imgOffset.sides + 1} title="Hot Wings 2" description="Spicy and crispy hot wings." pricingOptions={siderPricingRest} />
             <MenuCard imageNum={imgOffset.sides + 2} title="Hot Wings 3" description="Spicy and crispy hot wings." pricingOptions={siderPricingRest} />
@@ -572,9 +579,9 @@ export default function MenuPage() {
         </section>
 
         {/* 13. Drinks */}
-        <section id="drinks" className="scroll-mt-48">
+        <section id="drinks" className="scroll-mt-32">
           <SectionHeader title="Chilled Drinks" subtitle="7 ITEMS" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.drinks} title="345 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 120" />
             <MenuCard imageNum={imgOffset.drinks + 1} title="500 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 160" />
             <MenuCard imageNum={imgOffset.drinks + 2} title="1000 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 220" />
@@ -585,16 +592,20 @@ export default function MenuPage() {
           </div>
         </section>
 
-      </div>
+      </main>
 
       {/* FLOATING CART BUTTON LINKED TO CART PAGE */}
-      <Link href="/cart" className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-orange-600 to-orange-400 text-white shadow-[0_10px_40px_rgba(234,88,12,0.6)] flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform duration-300 border-4 border-white/20 dark:border-[#120D0A]/40 animate-custom-shake group">
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 sm:w-10 sm:h-10 fill-current" viewBox="0 0 256 256">
+      <Link 
+        href="/cart" 
+        aria-label="View Cart"
+        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white shadow-2xl shadow-orange-600/50 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white/30 dark:border-[#0D0907]/60 animate-custom-shake group"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 sm:w-9 sm:h-9 fill-current" viewBox="0 0 256 256">
           <path d="M222.14,58.87A8,8,0,0,0,216,56H54.68L49.79,29.14A16,16,0,0,0,34.05,16H16a8,8,0,0,0,0,16h18.05l15.6,85.78A16,16,0,0,0,65.27,128H200a8,8,0,0,0,0-16H65.27a.12.12,0,0,1-.05,0L61.85,96H213a8,8,0,0,0,7.88-6.62l10-56A8,8,0,0,0,222.14,58.87ZM206.63,80H58.94l-3.27-18H210ZM80,184a24,24,0,1,0-24-24A24,24,0,0,0,80,184Zm0-32a8,8,0,1,1-8,8A8,8,0,0,1,80,152Zm96,32a24,24,0,1,0-24-24A24,24,0,0,0,176,184Zm0-32a8,8,0,1,1-8,8A8,8,0,0,1,176,152Z"></path>
         </svg>
         
         {cartCount > 0 && (
-          <span className="absolute top-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-red-600 border-2 border-white dark:border-[#120D0A] text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center transform -translate-y-1/4 translate-x-1/4 shadow-lg group-hover:scale-110 transition-transform">
+          <span className="absolute top-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-red-600 border-2 border-white dark:border-[#0D0907] text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center transform -translate-y-1/4 translate-x-1/4 shadow-lg group-hover:scale-110 transition-transform">
             {cartCount}
           </span>
         )}
