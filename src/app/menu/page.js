@@ -237,10 +237,10 @@ export default function MenuPage() {
       : price;
 
     return (
-      <div className={`group relative bg-white/90 dark:bg-[#18110e]/80 backdrop-blur-xl rounded-3xl p-3 sm:p-4 flex flex-col shadow-xl shadow-black/[0.03] dark:shadow-orange-950/20 hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1 transition-all duration-300 border border-gray-100 dark:border-orange-500/10 ${className}`}>
+      <div className={`group relative bg-white/95 dark:bg-[#18110e]/90 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 flex flex-col shadow-xl shadow-black/[0.03] dark:shadow-orange-950/20 hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1 transition-all duration-300 border border-gray-100 dark:border-orange-500/10 ${className}`}>
         
-        {/* Top Image Container */}
-        <div className="w-full h-36 sm:h-48 bg-gradient-to-b from-gray-50 to-gray-100/60 dark:from-[#120D0A] dark:to-[#1c1410] rounded-2xl relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-3">
+        {/* Top Image Container - Optimized height for mobile to keep pictures clear and prominent */}
+        <div className="w-full h-32 sm:h-48 bg-gradient-to-b from-gray-50 to-gray-100/60 dark:from-[#120D0A] dark:to-[#1c1410] rounded-xl sm:rounded-2xl relative overflow-hidden mb-2.5 sm:mb-4 flex items-center justify-center p-2 sm:p-3">
           <img 
             src={`/${imageNum}.webp`} 
             alt={title} 
@@ -252,10 +252,10 @@ export default function MenuPage() {
             type="button"
             onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
             aria-label="Save to favorites"
-            className="absolute top-3 right-3 w-9 h-9 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all text-gray-400 dark:text-orange-200"
+            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 w-8 h-8 sm:w-9 sm:h-9 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all text-gray-400 dark:text-orange-200"
           >
             <svg 
-              className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'fill-none stroke-current stroke-[2]'}`} 
+              className={`w-3.5 h-3.5 sm:w-5 sm:h-5 transition-colors duration-300 ${isLiked ? 'text-red-500 fill-current' : 'fill-none stroke-current stroke-[2]'}`} 
               viewBox="0 0 24 24" 
               strokeLinecap="round" 
               strokeLinejoin="round"
@@ -266,27 +266,27 @@ export default function MenuPage() {
         </div>
 
         {/* Content Section */}
-        <div className="flex flex-col flex-grow px-1">
-          <h3 className="font-extrabold text-gray-900 dark:text-white text-sm sm:text-base uppercase tracking-tight line-clamp-1">{title}</h3>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-orange-200/60 mt-1 font-medium leading-relaxed line-clamp-2 min-h-[32px]">
+        <div className="flex flex-col flex-grow px-0.5 sm:px-1">
+          <h3 className="font-extrabold text-gray-900 dark:text-white text-xs sm:text-base uppercase tracking-tight line-clamp-1">{title}</h3>
+          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-orange-200/60 mt-0.5 sm:mt-1 font-medium leading-snug sm:leading-relaxed line-clamp-2 min-h-[28px] sm:min-h-[32px]">
             {description}
           </p>
           
-          <div className="mt-2 mb-3 min-h-[28px] flex items-end">
+          <div className="mt-1.5 sm:mt-2 mb-2 sm:mb-3 min-h-[24px] sm:min-h-[28px] flex items-end">
             {displayPrice ? (
-               <span className="text-orange-600 dark:text-orange-400 font-black text-base sm:text-lg">{displayPrice}</span>
+               <span className="text-orange-600 dark:text-orange-400 font-black text-sm sm:text-lg">{displayPrice}</span>
             ) : (
-               <span className="text-xs font-bold text-orange-500/70 uppercase tracking-wider">Choose size below</span>
+               <span className="text-[10px] sm:text-xs font-bold text-orange-500/70 uppercase tracking-wider">Choose size below</span>
             )}
           </div>
 
           {/* Dynamic Size Selector */}
           {pricingOptions && (
-            <div className="mb-3 relative">
+            <div className="mb-2.5 sm:mb-3 relative">
               <select 
                 value={selectedSize}
                 onChange={(e) => { setSelectedSize(e.target.value); setError(false); }}
-                className={`w-full p-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-800 dark:text-orange-100 outline-none transition-all appearance-none cursor-pointer ${
+                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-[11px] sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-800 dark:text-orange-100 outline-none transition-all appearance-none cursor-pointer ${
                   error ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-200 dark:border-orange-500/20 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#1c1410]'
                 }`}
               >
@@ -295,21 +295,21 @@ export default function MenuPage() {
                   <option key={opt.size} value={opt.size}>{opt.size} — Rs. {opt.price}</option>
                 ))}
               </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
+              <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              {error && <span className="absolute -top-3.5 right-2 text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1.5 py-0.5 rounded border border-red-200">Required!</span>}
+              {error && <span className="absolute -top-3.5 right-2 text-[9px] sm:text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1 py-0.5 rounded border border-red-200">Required!</span>}
             </div>
           )}
           
           <button 
             type="button"
             onClick={handleAddToCartClick}
-            className={`mt-auto w-full font-bold py-3 rounded-2xl uppercase tracking-wider text-xs sm:text-sm transition-all active:scale-95 shadow-md cursor-pointer ${
+            className={`mt-auto w-full font-bold py-2.5 sm:py-3 rounded-xl sm:rounded-2xl uppercase tracking-wider text-[11px] sm:text-sm transition-all active:scale-95 shadow-md cursor-pointer ${
               addedEffect ? 'bg-emerald-600 text-white shadow-emerald-600/30' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-500 text-white shadow-orange-600/10'
             }`}
           >
-            {addedEffect ? 'Added to Cart ✓' : 'Add To Cart'}
+            {addedEffect ? 'Added ✓' : 'Add To Cart'}
           </button>
         </div>
       </div>
