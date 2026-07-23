@@ -35,7 +35,7 @@ export default function MenuPage() {
       requestAnimationFrame(() => {
         const element = document.getElementById(sectionId);
         if (element) {
-          const y = element.getBoundingClientRect().top + window.scrollY - 140;
+          const y = element.getBoundingClientRect().top + window.scrollY - 120;
           window.scrollTo({ top: y, behavior: 'smooth' });
         }
       });
@@ -175,7 +175,7 @@ export default function MenuPage() {
           }
         });
       },
-      { rootMargin: '-15% 0px -70% 0px', threshold: 0.05 }
+      { rootMargin: '-20% 0px -70% 0px', threshold: 0.05 }
     );
 
     menuSections.forEach(({ id }) => {
@@ -196,7 +196,7 @@ export default function MenuPage() {
   const handleNavClick = (id) => {
     const element = document.getElementById(id);
     if (element) {
-      const y = element.getBoundingClientRect().top + window.scrollY - 140;
+      const y = element.getBoundingClientRect().top + window.scrollY - 120;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
   };
@@ -359,9 +359,10 @@ export default function MenuPage() {
   }), []);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0D0907] text-gray-900 dark:text-gray-100 antialiased relative selection:bg-orange-500 selection:text-white transition-colors duration-500">
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0D0907] text-gray-900 dark:text-gray-100 antialiased relative selection:bg-orange-500 selection:text-white transition-colors duration-300">
       
       <style dangerouslySetInnerHTML={{__html: `
+        html { scroll-behavior: smooth; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes custom-shake {
@@ -377,8 +378,14 @@ export default function MenuPage() {
       {/* Modern Ambient Background Glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[500px] bg-gradient-to-b from-orange-500/15 to-transparent blur-[120px] pointer-events-none -z-10"></div>
 
-      {/* Sticky Categories Navigation Bar */}
-      <nav className="sticky top-0 z-40 w-full bg-white/80 dark:bg-[#0D0907]/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-orange-500/15 shadow-sm transition-all duration-300">
+      {/* 
+        ==================================================
+        STICKY MENU STRIP PLACED EXACTLY BELOW THE HEADER
+        ==================================================
+        top-[72px] sm:top-[80px] ensures it sits cleanly right below standard header heights 
+        with a neat visual gap, remaining permanently sticky and fixed during scrolling.
+      */}
+      <nav className="sticky top-[72px] sm:top-[80px] z-40 w-full bg-white/85 dark:bg-[#0D0907]/90 backdrop-blur-xl border-y border-gray-200/80 dark:border-orange-500/15 shadow-md transition-all duration-300 mt-2">
         <div ref={navRef} className="max-w-[85rem] mx-auto flex items-center gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-6 lg:px-8 py-3 snap-x">
           {menuSections.map(({ id, label }) => (
             <button
@@ -412,7 +419,7 @@ export default function MenuPage() {
         </header>
 
         {/* 1. Exclusive Deals */}
-        <section id="exclusive-deals" className="scroll-mt-32">
+        <section id="exclusive-deals" className="scroll-mt-36">
           <SectionHeader title="Exclusive Deals" subtitle="12 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(12)].map((_, i) => (
@@ -422,7 +429,7 @@ export default function MenuPage() {
         </section>
 
         {/* 2. Midnight Deals */}
-        <section id="midnight-deals" className="scroll-mt-32">
+        <section id="midnight-deals" className="scroll-mt-36">
           <SectionHeader title="Midnight Deals" subtitle="6 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(6)].map((_, i) => (
@@ -432,7 +439,7 @@ export default function MenuPage() {
         </section>
 
         {/* 3. Birthday Offers */}
-        <section id="birthday-offers" className="scroll-mt-32">
+        <section id="birthday-offers" className="scroll-mt-36">
           <SectionHeader title="Birthday Offers" subtitle="2 EXCLUSIVE" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {[...Array(2)].map((_, i) => (
@@ -442,7 +449,7 @@ export default function MenuPage() {
         </section>
 
         {/* 4. Event Section */}
-        <section id="event-section" className="scroll-mt-32">
+        <section id="event-section" className="scroll-mt-36">
           <SectionHeader title="Event Section" subtitle="9 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(9)].map((_, i, arr) => (
@@ -452,7 +459,7 @@ export default function MenuPage() {
         </section>
 
         {/* 5. Burgers */}
-        <section id="burgers" className="scroll-mt-32">
+        <section id="burgers" className="scroll-mt-36">
           <SectionHeader title="Signature Burgers" subtitle="8 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(8)].map((_, i) => (
@@ -462,7 +469,7 @@ export default function MenuPage() {
         </section>
 
         {/* 6. Pizzas */}
-        <section id="pizzas" className="bg-white/50 dark:bg-[#140F0C]/60 p-4 sm:p-8 md:p-10 rounded-[2.5rem] border border-gray-200/60 dark:border-orange-500/15 backdrop-blur-2xl scroll-mt-32 shadow-xl">
+        <section id="pizzas" className="bg-white/50 dark:bg-[#140F0C]/60 p-4 sm:p-8 md:p-10 rounded-[2.5rem] border border-gray-200/60 dark:border-orange-500/15 backdrop-blur-2xl scroll-mt-36 shadow-xl">
           <SectionHeader title="Hand-Tossed Pizzas" />
           <div className="space-y-12">
             <div>
@@ -508,7 +515,7 @@ export default function MenuPage() {
         </section>
 
         {/* 7. Shawarmas */}
-        <section id="shawarmas" className="scroll-mt-32">
+        <section id="shawarmas" className="scroll-mt-36">
           <SectionHeader title="Authentic Shawarmas" subtitle="5 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.shawarmas} title="Loaded Shawarma 1" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." price="Rs. 399" />
@@ -520,7 +527,7 @@ export default function MenuPage() {
         </section>
 
         {/* 8. Parathas */}
-        <section id="parathas" className="scroll-mt-32">
+        <section id="parathas" className="scroll-mt-36">
           <SectionHeader title="Hot Parathas" subtitle="5 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.parathas} title="Zinger Paratha 1" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 589" />
@@ -532,7 +539,7 @@ export default function MenuPage() {
         </section>
 
         {/* 9. Fries */}
-        <section id="fries" className="scroll-mt-32">
+        <section id="fries" className="scroll-mt-36">
           <SectionHeader title="Loaded Fries" subtitle="4 ITEMS" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.fries} title="Pizza Fries 1" description="Crispy fries topped with pizza sauce and cheese." pricingOptions={friesPricing1} />
@@ -543,7 +550,7 @@ export default function MenuPage() {
         </section>
 
         {/* 10. Creamy Pasta */}
-        <section id="pasta" className="scroll-mt-32">
+        <section id="pasta" className="scroll-mt-36">
           <SectionHeader title="Creamy Pasta" subtitle="3 ITEMS" />
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.pasta} title="Alfredo Pasta 1" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing1} />
@@ -553,7 +560,7 @@ export default function MenuPage() {
         </section>
 
         {/* 11. Sauces */}
-        <section id="sauces" className="scroll-mt-32">
+        <section id="sauces" className="scroll-mt-36">
           <SectionHeader title="Dips & Sauces" subtitle="5 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.sauces} title="Garlic Mayo Dip 1" description="Homemade garlic mayo sauce." price="Rs. 70" />
@@ -565,7 +572,7 @@ export default function MenuPage() {
         </section>
 
         {/* 12. Side Orders */}
-        <section id="side-orders" className="scroll-mt-32">
+        <section id="side-orders" className="scroll-mt-36">
           <SectionHeader title="Side Orders" subtitle="7 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.sides} title="Hot Wings 1" description="Spicy and crispy hot wings." pricingOptions={siderPricingFirst} />
@@ -579,7 +586,7 @@ export default function MenuPage() {
         </section>
 
         {/* 13. Drinks */}
-        <section id="drinks" className="scroll-mt-32">
+        <section id="drinks" className="scroll-mt-36">
           <SectionHeader title="Chilled Drinks" subtitle="7 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             <MenuCard imageNum={imgOffset.drinks} title="345 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 120" />
