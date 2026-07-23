@@ -166,7 +166,7 @@ export default function MenuPage() {
     { id: 'drinks', label: 'Drinks' }
   ], []);
 
-  useEffect(() => {
+ useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -175,7 +175,7 @@ export default function MenuPage() {
           }
         });
       },
-      { rootMargin: '-20% 0px -70% 0px', threshold: 0.05 }
+      { rootMargin: '-10% 0px -60% 0px', threshold: 0 }
     );
 
     menuSections.forEach(({ id }) => {
@@ -385,7 +385,7 @@ export default function MenuPage() {
         top-[72px] sm:top-[80px] ensures it sits cleanly right below standard header heights 
         with a neat visual gap, remaining permanently sticky and fixed during scrolling.
       */}
-      <nav className="sticky top-[72px] sm:top-[80px] z-40 w-full bg-white/85 dark:bg-[#0D0907]/90 backdrop-blur-xl border-y border-gray-200/80 dark:border-orange-500/15 shadow-md transition-all duration-300 mt-2">
+      <nav className="sticky top-[95px] sm:top-[105px] z-40 w-full bg-white/85 dark:bg-[#0D0907]/90 backdrop-blur-xl border-y border-gray-200/80 dark:border-orange-500/15 shadow-md transition-all duration-300 mt-2">
         <div ref={navRef} className="max-w-[85rem] mx-auto flex items-center gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-6 lg:px-8 py-3 snap-x">
           {menuSections.map(({ id, label }) => (
             <button
