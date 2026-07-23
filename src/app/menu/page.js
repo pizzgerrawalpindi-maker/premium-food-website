@@ -38,6 +38,19 @@ export default function MenuPage() {
     }
   }, []);
 
+  // Force a correct, non-zoomed-out mobile viewport (fixes pages loading "zoomed out"
+  // on phones). This is a safety net in case app/layout.js isn't already setting one —
+  // see the chat reply for the cleaner, recommended way to do this in layout.js.
+  useEffect(() => {
+    let tag = document.querySelector('meta[name="viewport"]');
+    if (!tag) {
+      tag = document.createElement('meta');
+      tag.name = 'viewport';
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+  }, []);
+
   // Function to Add Item to LocalStorage WITHOUT redirecting
   const addToCart = (itemData) => {
     const savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
@@ -185,7 +198,7 @@ export default function MenuPage() {
     }
   };
 
-  const MenuCard = ({ title, description, price, pricingOptions, imageNum }) => {
+  const MenuCard = ({ title, description, price, pricingOptions, imageNum, className = '' }) => {
     const [isLiked, setIsLiked] = useState(false);
     const [selectedSize, setSelectedSize] = useState("");
     const [error, setError] = useState(false);
@@ -220,10 +233,10 @@ export default function MenuPage() {
       : price;
 
     return (
-      <div className="group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[1.8rem] sm:rounded-[2.5rem] p-3 sm:p-4 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20 w-full max-w-sm mx-auto">
+      <div className={`group relative bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-[1.8rem] sm:rounded-[2.5rem] p-2.5 sm:p-3 flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-1.5 transition-all duration-300 ring-1 ring-gray-900/5 dark:ring-orange-500/20 ${className}`}>
         
         {/* Top Image Area */}
-        <div className="w-full h-36 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.2rem] sm:rounded-[1.5rem] relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-2">
+        <div className="w-full h-32 sm:h-48 bg-gray-50 dark:bg-[#18110e] rounded-[1.2rem] sm:rounded-[1.5rem] relative overflow-hidden mb-3 sm:mb-4 flex items-center justify-center p-2">
           <img 
             src={`/${imageNum}.webp`} 
             alt={title} 
@@ -247,16 +260,16 @@ export default function MenuPage() {
 
         {/* Bottom Content Area */}
         <div className="flex flex-col flex-grow px-1">
-          <h3 className="font-black text-gray-900 dark:text-white text-xs sm:text-lg uppercase tracking-tight leading-snug">{title}</h3>
-          <p className="text-[10px] sm:text-sm text-gray-500 dark:text-orange-200/70 mt-1 sm:mt-2 font-medium leading-tight sm:leading-snug line-clamp-2 min-h-[28px] sm:min-h-[40px]">
+          <h3 className="font-black text-gray-900 dark:text-white text-sm sm:text-lg uppercase tracking-tight leading-snug">{title}</h3>
+          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-orange-200/70 mt-1 sm:mt-2 font-medium leading-tight sm:leading-snug line-clamp-2 min-h-[30px] sm:min-h-[40px]">
             {description}
           </p>
           
-          <div className="mt-1 sm:mt-2 mb-2 sm:mb-3 min-h-[24px] sm:min-h-[32px] flex items-end">
+          <div className="mt-1 sm:mt-2 mb-2 sm:mb-3 min-h-[26px] sm:min-h-[32px] flex items-end">
             {displayPrice ? (
-               <span className="text-orange-600 dark:text-orange-400 font-black text-sm sm:text-xl">{displayPrice}</span>
+               <span className="text-orange-600 dark:text-orange-400 font-black text-base sm:text-xl">{displayPrice}</span>
             ) : (
-               <span className="text-[9px] sm:text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size</span>
+               <span className="text-[10px] sm:text-sm font-bold text-gray-400 dark:text-orange-200/50 uppercase tracking-widest">Select Size</span>
             )}
           </div>
 
@@ -266,7 +279,7 @@ export default function MenuPage() {
               <select 
                 value={selectedSize}
                 onChange={(e) => { setSelectedSize(e.target.value); setError(false); }}
-                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-[11px] sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
+                className={`w-full p-2 sm:p-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-100 outline-none transition-colors appearance-none cursor-pointer ${
                   error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500 hover:bg-gray-100 dark:hover:bg-[#18110e]'
                 }`}
               >
@@ -278,13 +291,13 @@ export default function MenuPage() {
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 dark:text-orange-200/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              {error && <span className="absolute -top-4 right-1 text-[9px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
+              {error && <span className="absolute -top-4 right-1 text-[10px] text-red-500 font-black tracking-widest uppercase bg-white dark:bg-[#120D0A] px-1">Required!</span>}
             </div>
           )}
           
           <button 
             onClick={handleAddToCartClick}
-            className={`mt-auto w-full font-bold py-2.5 sm:py-3.5 rounded-xl uppercase tracking-widest text-[11px] sm:text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
+            className={`mt-auto w-full font-bold py-2.5 sm:py-3.5 rounded-xl uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 shadow-md hover:shadow-lg cursor-pointer ${
               addedEffect ? 'bg-green-600 text-white' : 'bg-gray-900 dark:bg-orange-600 hover:bg-black dark:hover:bg-orange-700 text-white'
             }`}
           >
@@ -297,7 +310,7 @@ export default function MenuPage() {
 
   const SectionHeader = ({ title, subtitle }) => (
     <div className="flex items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
-      <h2 className="text-xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 dark:text-white whitespace-nowrap">
         {title}
       </h2>
       <div className="h-[2px] flex-grow bg-gradient-to-r from-orange-500 to-orange-100 dark:to-orange-900/50 rounded-full opacity-70"></div>
@@ -307,12 +320,18 @@ export default function MenuPage() {
 
   const SubSectionHeader = ({ title }) => (
     <div className="flex items-center gap-4 mb-4 sm:mb-6 mt-4">
-      <h3 className="text-base sm:text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
+      <h3 className="text-lg sm:text-xl font-extrabold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">
         {title}
       </h3>
       <div className="h-px flex-grow bg-gray-200 dark:bg-orange-500/20"></div>
     </div>
   );
+
+  // When a section has an odd number of items, the last card is alone in its row
+  // on mobile (2-col grid) and would otherwise leave empty space beside it.
+  // These classes span it across both columns and center it at normal card width.
+  const centerLastMd = 'max-md:col-span-2 max-md:max-w-[calc(50%-0.375rem)] max-md:mx-auto';
+  const centerLastLg = 'max-lg:col-span-2 max-lg:max-w-[calc(50%-0.375rem)] max-lg:mx-auto';
 
   const imgOffset = {
     exclusive: 17,
@@ -335,7 +354,7 @@ export default function MenuPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500 overflow-x-hidden">
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased relative z-0 transition-colors duration-500">
       
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -349,7 +368,7 @@ export default function MenuPage() {
         .animate-custom-shake { animation: custom-shake 2s infinite ease-in-out; }
       `}} />
 
-      {/* Background Ambient Lights */}
+      {/* Background Ambient High-Intensity Central Orange Light Reflections */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px] pointer-events-none -z-10"></div>
       <div className="absolute top-[30%] left-10 w-[450px] h-[450px] bg-amber-600/10 rounded-full blur-[130px] pointer-events-none -z-10"></div>
       <div className="absolute top-[70%] right-10 w-[550px] h-[550px] bg-orange-500/15 rounded-full blur-[160px] pointer-events-none -z-10"></div>
@@ -374,13 +393,13 @@ export default function MenuPage() {
         </div>
       </div>
 
-      <div className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-12 pb-32 px-3 sm:px-6 lg:px-8 w-full">
+      <div className="max-w-[85rem] mx-auto space-y-16 sm:space-y-24 pt-10 sm:pt-12 pb-32 px-3 sm:px-6 lg:px-8 overflow-x-hidden">
         
         <div className="text-center pb-2 sm:pb-4">
-          <h1 className="text-3xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-3 sm:mb-4">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 mb-3 sm:mb-4">
             Our Full Menu
           </h1>
-          <p className="text-gray-500 dark:text-orange-200/70 text-xs sm:text-lg font-medium tracking-wide max-w-2xl mx-auto px-2">
+          <p className="text-gray-500 dark:text-orange-200/70 text-sm sm:text-lg font-medium tracking-wide max-w-2xl mx-auto px-2">
             Explore all exclusive deals, midnight specials, hand-tossed pizzas, and more.
           </p>
         </div>
@@ -419,8 +438,8 @@ export default function MenuPage() {
         <section id="event-section" className="scroll-mt-48">
           <SectionHeader title="Event Section" subtitle="9 ITEMS" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
-            {[...Array(9)].map((_, i) => (
-              <MenuCard key={i} imageNum={imgOffset.event + i} title={`Platter 0${i+1}`} description="Assorted wings, nuggets, and fries platter for the group." price="Rs. 1,500" />
+            {[...Array(9)].map((_, i, arr) => (
+              <MenuCard key={i} imageNum={imgOffset.event + i} title={`Platter 0${i+1}`} description="Assorted wings, nuggets, and fries platter for the group." price="Rs. 1,500" className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
             ))}
           </div>
         </section>
@@ -442,8 +461,8 @@ export default function MenuPage() {
             <div>
               <SubSectionHeader title="Standard Range (11)" />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
-                {[...Array(11)].map((_, i) => (
-                  <MenuCard key={i} imageNum={imgOffset.pizzaStd + i} title={`Fajita Pizza ${i+1}`} description="Chicken fajita, onions, capsicum & loads of mozzarella." pricingOptions={standardPricing} />
+                {[...Array(11)].map((_, i, arr) => (
+                  <MenuCard key={i} imageNum={imgOffset.pizzaStd + i} title={`Fajita Pizza ${i+1}`} description="Chicken fajita, onions, capsicum & loads of mozzarella." pricingOptions={standardPricing} className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
                 ))}
               </div>
             </div>
@@ -458,15 +477,15 @@ export default function MenuPage() {
             <div>
               <SubSectionHeader title="Pizzger Special Range (9)" />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
-                {[...Array(9)].map((_, i) => (
-                  <MenuCard key={i} imageNum={imgOffset.pizzaSpec + i} title={`Crown Crust ${i+1}`} description="Special crown crust filled with chicken chunks and sauce." pricingOptions={specialPricing} />
+                {[...Array(9)].map((_, i, arr) => (
+                  <MenuCard key={i} imageNum={imgOffset.pizzaSpec + i} title={`Crown Crust ${i+1}`} description="Special crown crust filled with chicken chunks and sauce." pricingOptions={specialPricing} className={i === arr.length - 1 && arr.length % 2 !== 0 ? centerLastMd : ''} />
                 ))}
               </div>
             </div>
             <div>
               <SubSectionHeader title="Double Stacked (1)" />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8">
-                <MenuCard imageNum={imgOffset.pizzaDbl} title="Double Stacked Pro" description="Two layers of pizza magic with extra cheese." pricingOptions={doubleStackedPricing} />
+                <MenuCard imageNum={imgOffset.pizzaDbl} title="Double Stacked Pro" description="Two layers of pizza magic with extra cheese." pricingOptions={doubleStackedPricing} className={centerLastMd} />
               </div>
             </div>
             <div>
@@ -489,7 +508,7 @@ export default function MenuPage() {
             <MenuCard imageNum={imgOffset.shawarmas + 1} title="Loaded Shawarma 2" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing2and3} />
             <MenuCard imageNum={imgOffset.shawarmas + 2} title="Loaded Shawarma 3" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing2and3} />
             <MenuCard imageNum={imgOffset.shawarmas + 3} title="Loaded Shawarma 4" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing4} />
-            <MenuCard imageNum={imgOffset.shawarmas + 4} title="Loaded Shawarma 5" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing5} />
+            <MenuCard imageNum={imgOffset.shawarmas + 4} title="Loaded Shawarma 5" description="Grilled chicken, pickles, fries, and garlic sauce wrapped in pita." pricingOptions={shawarmaPricing5} className={centerLastMd} />
           </div>
         </section>
 
@@ -501,7 +520,7 @@ export default function MenuPage() {
             <MenuCard imageNum={imgOffset.parathas + 1} title="Zinger Paratha 2" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 389" />
             <MenuCard imageNum={imgOffset.parathas + 2} title="Zinger Paratha 3" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 389" />
             <MenuCard imageNum={imgOffset.parathas + 3} title="Zinger Paratha 4" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 309" />
-            <MenuCard imageNum={imgOffset.parathas + 4} title="Zinger Paratha 5" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 259" />
+            <MenuCard imageNum={imgOffset.parathas + 4} title="Zinger Paratha 5" description="Crispy zinger wrapped in a flaky, hot paratha roll." price="Rs. 259" className={centerLastMd} />
           </div>
         </section>
 
@@ -522,7 +541,7 @@ export default function MenuPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-8">
             <MenuCard imageNum={imgOffset.pasta} title="Alfredo Pasta 1" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing1} />
             <MenuCard imageNum={imgOffset.pasta + 1} title="Alfredo Pasta 2" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing2and3} />
-            <MenuCard imageNum={imgOffset.pasta + 2} title="Alfredo Pasta 3" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing2and3} />
+            <MenuCard imageNum={imgOffset.pasta + 2} title="Alfredo Pasta 3" description="Penne pasta in rich alfredo sauce." pricingOptions={pastaPricing2and3} className={centerLastLg} />
           </div>
         </section>
 
@@ -534,7 +553,7 @@ export default function MenuPage() {
             <MenuCard imageNum={imgOffset.sauces + 1} title="Garlic Mayo Dip 2" description="Homemade garlic mayo sauce." price="Rs. 70" />
             <MenuCard imageNum={imgOffset.sauces + 2} title="Garlic Mayo Dip 3" description="Homemade garlic mayo sauce." price="Rs. 80" />
             <MenuCard imageNum={imgOffset.sauces + 3} title="Garlic Mayo Dip 4" description="Homemade garlic mayo sauce." price="Rs. 15" />
-            <MenuCard imageNum={imgOffset.sauces + 4} title="Garlic Mayo Dip 5" description="Homemade garlic mayo sauce." price="Rs. 15" />
+            <MenuCard imageNum={imgOffset.sauces + 4} title="Garlic Mayo Dip 5" description="Homemade garlic mayo sauce." price="Rs. 15" className={centerLastMd} />
           </div>
         </section>
 
@@ -548,7 +567,7 @@ export default function MenuPage() {
             <MenuCard imageNum={imgOffset.sides + 3} title="Hot Wings 4" description="Spicy and crispy hot wings." pricingOptions={siderPricingRest} />
             <MenuCard imageNum={imgOffset.sides + 4} title="Side Order 5" description="Crispy snack item." price="Rs. 279" />
             <MenuCard imageNum={imgOffset.sides + 5} title="Side Order 6" description="Crispy snack item." price="Rs. 279" />
-            <MenuCard imageNum={imgOffset.sides + 6} title="Side Order 7" description="Crispy snack item." price="Rs. 329" />
+            <MenuCard imageNum={imgOffset.sides + 6} title="Side Order 7" description="Crispy snack item." price="Rs. 329" className={centerLastMd} />
           </div>
         </section>
 
@@ -562,7 +581,7 @@ export default function MenuPage() {
             <MenuCard imageNum={imgOffset.drinks + 3} title="1500 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 270" />
             <MenuCard imageNum={imgOffset.drinks + 4} title="2000 ML Drink" description="Chilled refreshing carbonated beverage." price="Rs. 350" />
             <MenuCard imageNum={imgOffset.drinks + 5} title="Water Small" description="Pure mineral drinking water." price="Rs. 90" />
-            <MenuCard imageNum={imgOffset.drinks + 6} title="Water Large" description="Pure mineral drinking water." price="Rs. 160" />
+            <MenuCard imageNum={imgOffset.drinks + 6} title="Water Large" description="Pure mineral drinking water." price="Rs. 160" className={centerLastMd} />
           </div>
         </section>
 
