@@ -50,6 +50,11 @@ export default function ReceiptPage() {
   const formattedDate = currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
   const formattedTime = currentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
+  // ⚡ Calculations matching CartPage for exact Subtotal, 13% GST, and Dynamic Delivery Charges
+  const subtotal = orderData.items.reduce((acc, i) => acc + (i.isFree ? 0 : i.price * i.quantity), 0);
+  const gstAmount = Math.round(subtotal * 0.13);
+  const deliveryCharges = orderData.total_amount > 0 ? (orderData.total_amount - subtotal - gstAmount) : 0;
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 py-10 px-4 sm:px-6 flex flex-col items-center justify-center antialiased">
       
@@ -95,6 +100,9 @@ export default function ReceiptPage() {
             <div><span className="text-gray-400 dark:text-gray-500 block text-[10px] uppercase font-bold">Phone</span> <span className="font-extrabold">{orderData.phone}</span></div>
             <div><span className="text-gray-400 dark:text-gray-500 block text-[10px] uppercase font-bold">City</span> <span className="font-extrabold">{orderData.city}</span></div>
             <div><span className="text-gray-400 dark:text-gray-500 block text-[10px] uppercase font-bold">Payment</span> <span className="font-extrabold">{orderData.payment_method}</span></div>
+            {orderData.delivery_distance && (
+              <div><span className="text-gray-400 dark:text-gray-500 block text-[10px] uppercase font-bold">Distance</span> <span className="font-extrabold">{orderData.delivery_distance} km</span></div>
+            )}
           </div>
           <div className="pt-1">
             <span className="text-gray-400 dark:text-gray-500 block text-[10px] uppercase font-bold">Delivery Type</span> 
@@ -140,13 +148,21 @@ export default function ReceiptPage() {
         <div className="pt-3 border-t-2 border-dashed border-gray-200 dark:border-orange-500/30 space-y-2 text-xs">
           <div className="flex justify-between text-gray-500 dark:text-orange-200/70 font-medium">
             <span>Subtotal</span>
-            <span className="font-bold text-gray-800 dark:text-white">
-              Rs. {orderData.items.reduce((acc, i) => acc + (i.isFree ? 0 : i.price * i.quantity), 0)}
-            </span>
+            <span className="font-bold text-gray-800 dark:text-white">Rs. {subtotal}</span>
+          </div>
+          {subtotal > 1999 && (
+            <div className="flex justify-between text-emerald-400 text-xs font-bold">
+              <span>Exclusive Offer Item</span>
+              <span>FREE</span>
+            </div>
+          )}
+          <div className="flex justify-between text-gray-500 dark:text-orange-200/70 font-medium">
+            <span>GST (13%)</span>
+            <span className="font-bold text-gray-800 dark:text-white">Rs. {gstAmount}</span>
           </div>
           <div className="flex justify-between text-gray-500 dark:text-orange-200/70 font-medium">
-            <span>Delivery Charges</span>
-            <span className="font-bold text-gray-800 dark:text-white">Rs. 150</span>
+            <span>Delivery Charges {orderData.delivery_distance && <span className="text-[10px] text-orange-500 font-bold">({orderData.delivery_distance} km)</span>}</span>
+            <span className="font-bold text-gray-800 dark:text-white">Rs. {deliveryCharges}</span>
           </div>
           <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-orange-500/10 text-sm">
             <span className="font-black uppercase tracking-wider text-gray-900 dark:text-white">Grand Total</span>

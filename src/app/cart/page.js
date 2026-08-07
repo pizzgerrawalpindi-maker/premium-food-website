@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import LocationPopup from '@/app/components/LocationPopup'; // ⚠️ adjust this path if LocationPopup lives elsewhere in your project
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState([]);
@@ -17,13 +18,36 @@ export default function CartPage() {
   const [deliveryType, setDeliveryType] = useState('ASAP');
   const [scheduledDateTime, setScheduledDateTime] = useState('');
   const [errors, setErrors] = useState({});
-  const [showDetails, setShowDetails] = useState(false); // Mobile expand/collapse
+  const [showDetails, setShowDetails] = useState(false);
+
+  // 📍 Location Gate — checkout is blocked until we have a real lat/lng on file.
+  const [hasLocation, setHasLocation] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const lat = parseFloat(localStorage.getItem('user_detected_lat'));
+    const lng = parseFloat(localStorage.getItem('user_detected_lng'));
+    return Number.isFinite(lat) && Number.isFinite(lng);
+  });
+
+  const checkStoredLocation = () => {
+    const lat = parseFloat(localStorage.getItem('user_detected_lat'));
+    const lng = parseFloat(localStorage.getItem('user_detected_lng'));
+    setHasLocation(Number.isFinite(lat) && Number.isFinite(lng));
+  };
+
+  useEffect(() => {
+    window.addEventListener('locationDetected', checkStoredLocation);
+    window.addEventListener('storage', checkStoredLocation);
+    return () => {
+      window.removeEventListener('locationDetected', checkStoredLocation);
+      window.removeEventListener('storage', checkStoredLocation);
+    };
+  }, []);
 
   // Offer Modal State
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [confettiPieces, setConfettiPieces] = useState([]);
 
-  // ⚡ Force Scroll to Top on Mount (Fixes opening at footer issue)
+  // ⚡ Force Scroll to Top on Mount
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
@@ -32,13 +56,11 @@ export default function CartPage() {
   useEffect(() => {
     let savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
     
-    // Calculate subtotal excluding any existing free item to check threshold
     const normalItemsSubtotal = savedCart
       .filter(item => item.id !== 'free-promo-item-4')
       .reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
     if (normalItemsSubtotal >= 2000) {
-      // Check if free item already exists
       const freeItemIndex = savedCart.findIndex(item => item.id === 'free-promo-item-4');
       if (freeItemIndex === -1) {
         savedCart.push({
@@ -51,10 +73,9 @@ export default function CartPage() {
           isFree: true
         });
       } else {
-        savedCart[freeItemIndex].quantity = 1; // ensure qty is 1
+        savedCart[freeItemIndex].quantity = 1;
       }
     } else {
-      // Remove free item if subtotal drops below 2000
       savedCart = savedCart.filter(item => item.id !== 'free-promo-item-4');
     }
 
@@ -62,9 +83,7 @@ export default function CartPage() {
     localStorage.setItem('food_cart', JSON.stringify(savedCart));
   }, []);
 
-  // Sync Storage & Header Badges with Free Item Rule
   const updateCart = (updatedItems) => {
-    // Recalculate normal subtotal
     const normalSubtotal = updatedItems
       .filter(item => item.id !== 'free-promo-item-4')
       .reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -109,20 +128,65 @@ export default function CartPage() {
     updateCart(updated);
   };
 
-  // Calculations (Free item price is 0)
+  // 📍 Pizzger Exact Branch Location (Sir Syed Chowk, Tipu Road, Rawalpindi)
+  const BRANCH_LAT = 33.6041699; 
+  const BRANCH_LNG = 73.0760369;
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; 
+  };
+
+  // 🚀 Updated Distance-Based Delivery Charges Calculation
+  const getDynamicDeliveryCharges = (dist) => {
+    if (!Number.isFinite(dist)) return 40;
+
+    const km = Math.ceil(dist); 
+
+    // 1. First 3 km at 40/km
+    if (km <= 3) return km * 40;
+
+    // 2. From 4th to 7th km (decreasing by 5 down to 20 for 7th km)
+    if (km <= 7) {
+        let charges = 120;
+        let rate = 35;
+        for (let i = 4; i <= km; i++) {
+            charges += rate;
+            rate -= 5;
+        }
+        return charges;
+    }
+
+    // 3. 8th km onwards at constant 20/km (Cost for first 7km is 230)
+    return 230 + ((km - 7) * 20);
+  };
+
+  // Calculations & Distance
+  const userLat = typeof window !== 'undefined' ? parseFloat(localStorage.getItem('user_detected_lat')) : 0;
+  const userLng = typeof window !== 'undefined' ? parseFloat(localStorage.getItem('user_detected_lng')) : 0;
+  const calculatedDistance = calculateDistance(BRANCH_LAT, BRANCH_LNG, userLat, userLng);
+
   const normalCartItems = cartItems.filter(item => item.id !== 'free-promo-item-4');
   const subtotal = normalCartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const deliveryCharges = cartItems.length > 0 ? 150 : 0;
-  const total = subtotal > 0 ? subtotal + deliveryCharges : 0;
+  const deliveryCharges = cartItems.length > 0 ? getDynamicDeliveryCharges(calculatedDistance) : 0;
+  
+  // 13% GST
+  const gstAmount = Math.round(subtotal * 0.13);
+  const total = subtotal > 0 ? subtotal + gstAmount + deliveryCharges : 0;
 
-  // Min Time (1 Hour Ahead)
   const getMinDateTime = () => {
     const now = new Date();
     now.setHours(now.getHours() + 1);
     return now.toISOString().slice(0, 16);
   };
 
-  // Trigger Confetti effect
   const triggerConfetti = () => {
     const pieces = Array.from({ length: 50 }).map((_, i) => ({
       id: i,
@@ -134,17 +198,30 @@ export default function CartPage() {
     setConfettiPieces(pieces);
   };
 
-  // Order Submission & Restaurant Timing Validation (03:00 PM to 02:00 AM)
   const handleConfirmOrder = async (e) => {
     e.preventDefault();
+
+    const detectedLat = parseFloat(localStorage.getItem('user_detected_lat'));
+    const detectedLng = parseFloat(localStorage.getItem('user_detected_lng'));
+    if (!Number.isFinite(detectedLat) || !Number.isFinite(detectedLng)) {
+      alert("We cannot proceed with your order because your location is not set. Please allow location access or manually set your location to continue.");
+      setHasLocation(false);
+      return;
+    }
+
     let newErrors = {};
+
+    const isOutOfArea = localStorage.getItem('out_of_delivery_area') === 'true';
+    if (isOutOfArea) {
+      alert("Sorry, you are away from our delivery areas.");
+      return;
+    }
 
     if (normalCartItems.length === 0) {
       alert("Your cart is empty! Please add items from the menu first.");
       return;
     }
 
-    // Minimum Order Amount Validation (Rs. 600)
     if (subtotal < 600) {
       alert("Minimum order amount must be at least Rs. 600 to proceed.");
       return;
@@ -155,30 +232,59 @@ export default function CartPage() {
       return;
     }
 
-    // ⚡ Restaurant Operating Hours Validation (03:00 PM to 02:00 AM)
-    if (deliveryType === 'ASAP') {
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const isCurrentlyOpen = currentMinutes >= 900 || currentMinutes < 120; // 900 mins = 3 PM, 120 mins = 2 AM
-      
-      if (!isCurrentlyOpen) {
-        alert("We Are Closed right now! Our operating hours are 03:00 PM to 02:00 AM. Please choose a scheduled time within our working hours.");
-        return;
-      }
-    } else if (deliveryType === 'Scheduled') {
-      if (!scheduledDateTime) {
-        alert("Please select a valid scheduled delivery time.");
-        return;
-      }
+    try {
+      const { data: settingData } = await supabase.from('settings').select('*').single();
 
-      const selectedDate = new Date(scheduledDateTime);
-      const selectedMinutes = selectedDate.getHours() * 60 + selectedDate.getMinutes();
-      const isScheduledWithinHours = selectedMinutes >= 900 || selectedMinutes < 120;
+      if (settingData) {
+        if (settingData.is_open === false) {
+          alert("We Are Closed by management right now! Please order during working hours.");
+          return;
+        }
 
-      if (!isScheduledWithinHours) {
-        alert("Please select an order time within our operating hours range (03:00 PM to 02:00 AM).");
-        return;
+        if (settingData.opening_time && settingData.closing_time) {
+          const [openH, openM] = settingData.opening_time.split(':').map(Number);
+          const [closeH, closeM] = settingData.closing_time.split(':').map(Number);
+          const openMins = openH * 60 + openM;
+          const closeMins = closeH * 60 + closeM;
+
+          if (deliveryType === 'ASAP') {
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+            let isOpen = false;
+            if (openMins < closeMins) {
+              isOpen = currentMins >= openMins && currentMins < closeMins;
+            } else {
+              isOpen = currentMins >= openMins || currentMins < closeMins;
+            }
+
+            if (!isOpen) {
+              alert(`We Are Closed right now! Our operating hours are ${settingData.opening_time} to ${settingData.closing_time}.`);
+              return;
+            }
+          } else if (deliveryType === 'Scheduled') {
+            if (!scheduledDateTime) {
+              alert("Please select a valid scheduled delivery time.");
+              return;
+            }
+
+            const selectedDate = new Date(scheduledDateTime);
+            const selectedMins = selectedDate.getHours() * 60 + selectedDate.getMinutes();
+            let isWithin = false;
+            if (openMins < closeMins) {
+              isWithin = selectedMins >= openMins && selectedMins < closeMins;
+            } else {
+              isWithin = selectedMins >= openMins || selectedMins < closeMins;
+            }
+
+            if (!isWithin) {
+              alert(`Please select an order time within our operating hours range (${settingData.opening_time} to ${settingData.closing_time}).`);
+              return;
+            }
+          }
+        }
       }
+    } catch (err) {
+      console.error('Timing validation fallback check:', err);
     }
 
     if (!name.trim()) newErrors.name = true;
@@ -202,6 +308,10 @@ export default function CartPage() {
             city: city,
             address: address,
             apartment: apartment,
+            detected_address: localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
+            latitude: parseFloat(localStorage.getItem('user_detected_lat')) || null,
+            longitude: parseFloat(localStorage.getItem('user_detected_lng')) || null,
+            delivery_distance: Number.isFinite(calculatedDistance) ? parseFloat(calculatedDistance.toFixed(1)) : null,
             special_instructions: specialInstructions,
             payment_method: paymentMethod,
             delivery_type: deliveryType,
@@ -217,13 +327,16 @@ export default function CartPage() {
           return;
         }
 
-        // Save confirmed order data locally so receipt page can read it
         const finalOrderObject = {
           customer_name: name,
           phone: `+92${phone}`,
           city: city,
           address: address,
           apartment: apartment,
+          detected_address: localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
+          latitude: parseFloat(localStorage.getItem('user_detected_lat')) || null,
+          longitude: parseFloat(localStorage.getItem('user_detected_lng')) || null,
+          delivery_distance: Number.isFinite(calculatedDistance) ? parseFloat(calculatedDistance.toFixed(1)) : null,
           special_instructions: specialInstructions,
           payment_method: paymentMethod,
           delivery_type: deliveryType,
@@ -233,8 +346,7 @@ export default function CartPage() {
           created_at: new Date().toISOString()
         };
         localStorage.setItem('last_confirmed_order', JSON.stringify(finalOrderObject));
-
-        // Check if subtotal is above 1999 to show special celebration popup
+        
         if (subtotal > 1999) {
           triggerConfetti();
           setShowOfferModal(true);
@@ -257,8 +369,9 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased pb-44 lg:pb-32 relative z-0 transition-colors duration-500">
-      
-      {/* Confetti Animation Container */}
+
+      <LocationPopup forceOpen={!hasLocation} onLocated={checkStoredLocation} />
+
       {showOfferModal && (
         <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
           {confettiPieces.map(p => (
@@ -277,37 +390,27 @@ export default function CartPage() {
         </div>
       )}
 
-      {/* Celebration Modal for Subtotal > 1999 */}
       {showOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="bg-[#18110e] border-2 border-orange-500 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl relative space-y-4">
-            
             <div className="absolute -top-4 -left-4 w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white font-black text-sm uppercase shadow-lg border-2 border-white animate-bounce">
               Free!
             </div>
-
             <h3 className="text-2xl font-black uppercase text-orange-400 tracking-wide">Congratulations! 🎉</h3>
             <p className="text-sm font-bold text-white leading-relaxed">
               Mubarak ho, aapne hamari exclusive offer avail kr li ha!
             </p>
-
             <div className="w-32 h-32 mx-auto bg-gray-900 rounded-2xl p-2 border border-orange-500/30 flex items-center justify-center">
               <img src="/images/4.webp" alt="Free Offer Item" className="w-full h-full object-contain" />
             </div>
-
-            <p className="text-xs text-orange-200/70 font-medium">
-              Your free item has been successfully included with your order. Redirecting in 5 seconds...
-            </p>
           </div>
         </div>
       )}
 
-      {/* Background Central High-Intensity Orange Light Reflection (Isolated in overflow-hidden container) */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px]"></div>
       </div>
 
-      {/* Top Banner Header */}
       <div className="bg-white/80 dark:bg-[#120D0A]/85 backdrop-blur-xl border-b border-gray-100 dark:border-orange-500/20 shadow-xs relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
           <div>
@@ -320,13 +423,18 @@ export default function CartPage() {
         </div>
       </div>
 
+      {!hasLocation && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+          <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 text-xs font-bold rounded-2xl p-3.5 text-center">
+            📍 Please set your location to proceed with the order.
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start lg:items-stretch relative z-10">
         
-        {/* Left Side: Items & Form */}
         <div className="lg:col-span-7 space-y-6">
-          
-          {/* Cart Items List */}
-          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm dark:shadow-[0_20px_50px_-10px_rgba(234,88,12,0.15)] border border-gray-100 dark:border-orange-500/20">
+          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 dark:border-orange-500/20">
             <h2 className="text-lg font-black uppercase tracking-tight text-gray-800 dark:text-white mb-4">Selected Items</h2>
             
             {cartItems.length === 0 ? (
@@ -335,8 +443,7 @@ export default function CartPage() {
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
                 </div>
                 <h3 className="text-base font-bold text-gray-800 dark:text-white">Your cart is empty</h3>
-                <p className="text-xs text-gray-400 dark:text-orange-200/60 max-w-xs mx-auto">Explore our menu options and add delicious items to proceed.</p>
-                <Link href="/menu" className="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-orange-600/30">
+                <Link href="/menu" className="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all">
                   Go To Menu
                 </Link>
               </div>
@@ -382,12 +489,10 @@ export default function CartPage() {
             )}
           </div>
 
-          {/* Delivery Details Form */}
-          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm dark:shadow-[0_20px_50px_-10px_rgba(234,88,12,0.15)] border border-gray-100 dark:border-orange-500/20">
+          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 dark:border-orange-500/20">
             <h2 className="text-lg font-black uppercase tracking-tight text-gray-800 dark:text-white mb-5">Delivery Information</h2>
             
             <form onSubmit={handleConfirmOrder} className="space-y-4">
-              
               <div id="name">
                 <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Full Name</label>
                 <input 
@@ -496,21 +601,16 @@ export default function CartPage() {
                   />
                 )}
               </div>
-
             </form>
           </div>
-
         </div>
 
-        {/* Right Side / Sticky Laptop Calculator & Mobile Fixed Bottom Bar */}
         <div className="lg:col-span-5">
           <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-white/95 dark:bg-[#120D0A]/95 backdrop-blur-md border-t border-gray-200 dark:border-orange-500/20 shadow-2xl lg:bg-transparent lg:p-0 lg:border-none lg:shadow-none lg:sticky lg:top-28">
-            
             <div className="bg-[#18110e] dark:bg-[#1c1410]/95 text-white rounded-3xl p-4 sm:p-6 shadow-2xl ring-1 ring-orange-500/30 space-y-3 backdrop-blur-xl max-w-7xl mx-auto">
               
               <div className="flex items-center justify-between border-b border-orange-500/20 pb-2.5">
                 <h3 className="text-lg font-black uppercase tracking-tight text-white hidden lg:block">Checkout Summary</h3>
-
                 <button
                   type="button"
                   onClick={() => setShowDetails(!showDetails)}
@@ -519,21 +619,12 @@ export default function CartPage() {
                   <span>Order Summary ({cartItems.length} items)</span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-orange-500 font-black">Rs. {total}</span>
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-300 ${showDetails ? 'rotate-180' : ''}`}
-                      fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path>
-                    </svg>
+                    <svg className={`w-4 h-4 transition-transform duration-300 ${showDetails ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
                 </button>
               </div>
               
-              <div
-                className={`space-y-2 text-xs sm:text-sm font-medium border-b border-orange-500/20 pb-3 text-orange-100/75 overflow-hidden transition-all duration-300 lg:!max-h-40 lg:!opacity-100 ${
-                  showDetails ? 'max-h-40 opacity-100 pt-1' : 'max-h-0 opacity-0 !border-b-0 !pb-0 lg:!border-b lg:!pb-3'
-                }`}
-              >
+              <div className={`space-y-2 text-xs sm:text-sm font-medium border-b border-orange-500/20 pb-3 text-orange-100/75 overflow-hidden transition-all duration-300 lg:!max-h-45 lg:!opacity-100 ${showDetails ? 'max-h-45 opacity-100 pt-1' : 'max-h-0 opacity-0 !border-b-0 !pb-0 lg:!border-b lg:!pb-3'}`}>
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span className="font-bold text-white">Rs. {subtotal}</span>
@@ -545,7 +636,11 @@ export default function CartPage() {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Delivery Charges</span>
+                  <span>GST (13%)</span>
+                  <span className="font-bold text-white">Rs. {gstAmount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Delivery Charges {Number.isFinite(calculatedDistance) && <span className="text-[10px] text-orange-400">({calculatedDistance.toFixed(1)} km)</span>}</span>
                   <span className="font-bold text-white">Rs. {deliveryCharges}</span>
                 </div>
               </div>
@@ -565,7 +660,6 @@ export default function CartPage() {
                 Confirm Order
               </button>
             </div>
-
           </div>
         </div>
 

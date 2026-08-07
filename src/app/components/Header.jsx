@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isOpenNow, setIsOpenNow] = useState(true);
+  const [timingText, setTimingText] = useState('03:00 PM - 02:00 AM');
   
   // Modal State Management (Sign In vs Sign Up forms)
   const [authMode, setAuthMode] = useState('signin');
@@ -16,21 +18,72 @@ export default function Header() {
   const [name, setName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Restaurant Timing Check (03:00 PM to 02:00 AM)
-  useEffect(() => {
-    const checkRestaurantStatus = () => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const currentTimeInMinutes = currentHour * 60 + currentMinute;
+  // Helper to convert '15:00' to '03:00 PM'
+  const format12Hour = (timeStr) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const adjustedHour = h % 12 === 0 ? 12 : h % 12;
+    const formattedHour = String(adjustedHour).padStart(2, '0');
+    const formattedMinute = String(m).padStart(2, '0');
+    return `${formattedHour}:${formattedMinute} ${period}`;
+  };
 
-      // Open if time is >= 900 minutes (3 PM) OR < 120 minutes (2 AM next day)
-      const isOpen = currentTimeInMinutes >= 900 || currentTimeInMinutes < 120;
-      setIsOpenNow(isOpen);
+  // Dynamic Restaurant Timing & Status Check from Supabase Database
+  useEffect(() => {
+    const checkRestaurantStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('*')
+          .single();
+
+        if (data) {
+          // Format times nicely with AM/PM
+          if (data.opening_time && data.closing_time) {
+            const formattedOpen = format12Hour(data.opening_time);
+            const formattedClose = format12Hour(data.closing_time);
+            setTimingText(`${formattedOpen} - ${formattedClose}`);
+          }
+
+          // If admin manually forced store closed
+          if (data.is_open === false) {
+            setIsOpenNow(false);
+            return;
+          }
+
+          // If manual override is not forced closed, check time range dynamically
+          if (data.opening_time && data.closing_time) {
+            const [openH, openM] = data.opening_time.split(':').map(Number);
+            const [closeH, closeM] = data.closing_time.split(':').map(Number);
+            
+            const openMins = openH * 60 + openM;
+            const closeMins = closeH * 60 + closeM;
+
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+
+            let isOpen = false;
+            if (openMins < closeMins) {
+              isOpen = currentMins >= openMins && currentMins < closeMins;
+            } else {
+              // Handles overnight schedule e.g., 03:00 PM (900m) to 02:00 AM (120m)
+              isOpen = currentMins >= openMins || currentMins < closeMins;
+            }
+            setIsOpenNow(isOpen);
+            return;
+          }
+        }
+      } catch (err) {
+        // Fallback default logic if settings table is empty or missing
+        const now = new Date();
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        setIsOpenNow(currentMins >= 900 || currentMins < 120);
+      }
     };
 
     checkRestaurantStatus();
-    const interval = setInterval(checkRestaurantStatus, 30000);
+    const interval = setInterval(checkRestaurantStatus, 15000); // Check every 15 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -157,7 +210,7 @@ export default function Header() {
                   {isOpenNow ? 'Timing' : 'Status'}
                 </span>
                 <span className={`text-[11px] sm:text-xs font-extrabold tracking-wide mt-0.5 ${isOpenNow ? 'text-neutral-800 dark:text-orange-100' : 'text-red-500 dark:text-red-400 font-black'}`}>
-                  {isOpenNow ? '03:00 PM - 02:00 AM' : 'We Are Closed'}
+                  {isOpenNow ? timingText : 'We Are Closed'}
                 </span>
               </div>
             </div>

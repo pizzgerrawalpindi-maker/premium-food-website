@@ -17,6 +17,18 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "PizzGer - Order Delicious Pizzas, Burgers & Fast Food Online",
   description: "Order fresh pizzas, crispy burgers, shawarmas, and exclusive deals online from PizzGer, Tipu Road Rawalpindi. Fast delivery!",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
+    ],
+    apple: {
+      url: "/apple-touch-icon.png",
+      sizes: "180x180",
+      type: "image/png",
+    },
+  },
+  manifest: "/site.webmanifest",
 };
 
 export const viewport = {

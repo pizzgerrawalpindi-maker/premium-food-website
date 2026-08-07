@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import AdminAuthGate from './AdminAuthGate';
 
-// Helper functions for smart path handling in admin
 // Helper functions for smart path handling in admin
 const getImagePath = (imgVal) => {
   if (!imgVal || imgVal.trim() === '') return '/images/placeholder.webp';
@@ -11,12 +11,12 @@ const getImagePath = (imgVal) => {
 };
 
 const getVideoPath = (vidVal) => {
-  if (!vidVal || vidVal.trim() === '') return undefined; // ⚡ Fix: returns undefined instead of "" to prevent browser reload error
+  if (!vidVal || vidVal.trim() === '') return undefined; 
   if (vidVal.startsWith('/') || vidVal.startsWith('http')) return vidVal;
   return `/videos/${vidVal}.webm`;
 };
 
-export default function AdminDashboard() {
+function AdminDashboardContent() {
   const [activeTab, setActiveTab] = useState('menu');
   const [categories, setCategories] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -28,7 +28,38 @@ export default function AdminDashboard() {
   const [homeMenuImages, setHomeMenuImages] = useState([]);
   const [homeVideos, setHomeVideos] = useState([]);
 
+  // Store Settings States (Open/Close & Timings)
+  const [storeSettings, setStoreSettings] = useState({
+    id: null,
+    is_open: true,
+    opening_time: '15:00',
+    closing_time: '02:00'
+  });
+
   const [loading, setLoading] = useState(false);
+
+  // ⚡ Supabase Realtime Listener for New Orders (Silent update without buzzer)
+  useEffect(() => {
+    const channel = supabase
+      .channel('live-orders-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          const newOrder = payload.new;
+          setOrders((prevOrders) => [newOrder, ...prevOrders]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     fetchInitialData();
@@ -43,7 +74,8 @@ export default function AdminDashboard() {
         { data: sliderData },
         { data: promoData },
         { data: menuImgData },
-        { data: vidData }
+        { data: vidData },
+        { data: settingsData }
       ] = await Promise.all([
         supabase.from('categories').select('*').order('display_order', { ascending: true }),
         supabase.from('menu_items').select('*').order('display_order', { ascending: true }),
@@ -52,6 +84,7 @@ export default function AdminDashboard() {
         supabase.from('home_promos').select('*').order('display_order', { ascending: true }),
         supabase.from('home_menu_images').select('*').order('display_order', { ascending: true }),
         supabase.from('home_videos').select('*').order('display_order', { ascending: true }),
+        supabase.from('settings').select('*').single(),
       ]);
 
       setCategories(catData || []);
@@ -61,10 +94,104 @@ export default function AdminDashboard() {
       setHomePromos(promoData || []);
       setHomeMenuImages(menuImgData || []);
       setHomeVideos(vidData || []);
+
+      if (settingsData) {
+        setStoreSettings({
+          id: settingsData.id,
+          is_open: settingsData.is_open ?? true,
+          opening_time: settingsData.opening_time || '15:00',
+          closing_time: settingsData.closing_time || '02:00'
+        });
+      }
     } catch (err) {
       console.error('Error fetching admin data:', err);
     }
   }
+
+  // --- MASTER SILENT SAVE ALL FUNCTION (No popups/alerts) ---
+  const handleSaveAll = async () => {
+    setLoading(true);
+    try {
+      // 1. Save Store Settings
+      if (storeSettings.id) {
+        await supabase.from('settings').update({
+          is_open: storeSettings.is_open,
+          opening_time: storeSettings.opening_time,
+          closing_time: storeSettings.closing_time,
+        }).eq('id', storeSettings.id);
+      }
+
+      // 2. Save Categories
+      for (const cat of categories) {
+        await supabase.from('categories').update({
+          name: cat.name,
+          slug: cat.slug || cat.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        }).eq('id', cat.id);
+      }
+
+      // 3. Save Menu Items
+      for (const item of menuItems) {
+        const payload = {
+          title: item.title,
+          description: item.description,
+          image_num: item.image_num !== '' && item.image_num !== null ? parseInt(item.image_num) : null,
+          price: item.pricing_options && item.pricing_options.length > 0 ? null : parseFloat(item.price || 0),
+          pricing_options: item.pricing_options && item.pricing_options.length > 0 ? item.pricing_options : null,
+        };
+        await supabase.from('menu_items').update(payload).eq('id', item.id);
+      }
+
+      // 4. Save Home Sliders
+      for (const slider of homeSliders) {
+        await supabase.from('home_sliders').update({ img: slider.img, link: slider.link }).eq('id', slider.id);
+      }
+
+      // 5. Save Home Promos
+      for (const promo of homePromos) {
+        await supabase.from('home_promos').update({ img: promo.img, link: promo.link, badge: promo.badge }).eq('id', promo.id);
+      }
+
+      // 6. Save Home Menu Images
+      for (const item of homeMenuImages) {
+        await supabase.from('home_menu_images').update({ img: item.img, name: item.name, category_id: item.category_id }).eq('id', item.id);
+      }
+
+      // 7. Save Home Videos
+      for (const vid of homeVideos) {
+        await supabase.from('home_videos').update({ video_url: vid.video_url }).eq('id', vid.id);
+      }
+
+      fetchInitialData();
+    } catch (err) {
+      console.error('Error saving all data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- STORE SETTINGS HANDLER ---
+  const handleSaveStoreSettings = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const payload = {
+        is_open: storeSettings.is_open,
+        opening_time: storeSettings.opening_time,
+        closing_time: storeSettings.closing_time,
+      };
+
+      if (storeSettings.id) {
+        await supabase.from('settings').update(payload).eq('id', storeSettings.id);
+      } else {
+        await supabase.from('settings').insert([payload]);
+        fetchInitialData();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- MENU & CATEGORIES HANDLERS ---
   const handleItemChange = (id, field, value) => {
@@ -129,8 +256,7 @@ export default function AdminDashboard() {
         pricing_options: item.pricing_options && item.pricing_options.length > 0 ? item.pricing_options : null,
       };
 
-      const { error } = await supabase.from('menu_items').update(payload).eq('id', item.id);
-      if (error) console.error('Failed to save item: ' + error.message);
+      await supabase.from('menu_items').update(payload).eq('id', item.id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -146,8 +272,7 @@ export default function AdminDashboard() {
         slug: cat.slug || cat.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
       };
 
-      const { error } = await supabase.from('categories').update(payload).eq('id', cat.id);
-      if (error) console.error('Failed to save category: ' + error.message);
+      await supabase.from('categories').update(payload).eq('id', cat.id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -156,7 +281,6 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteItem = async (id) => {
-    if (!confirm('Are you sure you want to delete this item?')) return;
     const { error } = await supabase.from('menu_items').delete().eq('id', id);
     if (!error) {
       setMenuItems(menuItems.filter(item => item.id !== id));
@@ -164,7 +288,6 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (!confirm('Are you sure you want to delete this category? All items inside it might be affected.')) return;
     const { error } = await supabase.from('categories').delete().eq('id', id);
     if (!error) {
       setCategories(categories.filter(cat => cat.id !== id));
@@ -190,8 +313,7 @@ export default function AdminDashboard() {
     };
 
     const { error } = await supabase.from('menu_items').insert([newItem]);
-    if (error) console.error('Failed to insert card: ' + error.message);
-    else fetchInitialData();
+    if (!error) fetchInitialData();
   };
 
   const handleInsertCategoryBetween = async (targetOrder) => {
@@ -209,8 +331,7 @@ export default function AdminDashboard() {
     };
 
     const { error } = await supabase.from('categories').insert([newCat]);
-    if (error) console.error('Failed to insert category: ' + error.message);
-    else fetchInitialData();
+    if (!error) fetchInitialData();
   };
 
 
@@ -224,7 +345,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   const handleDeleteSlider = async (id) => {
-    if (!confirm('Delete this slider?')) return;
     await supabase.from('home_sliders').delete().eq('id', id);
     setHomeSliders(homeSliders.filter(s => s.id !== id));
   };
@@ -243,7 +363,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   const handleDeletePromo = async (id) => {
-    if (!confirm('Delete this promo card?')) return;
     await supabase.from('home_promos').delete().eq('id', id);
     setHomePromos(homePromos.filter(p => p.id !== id));
   };
@@ -262,7 +381,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   const handleDeleteMenuImg = async (id) => {
-    if (!confirm('Delete this signature item?')) return;
     await supabase.from('home_menu_images').delete().eq('id', id);
     setHomeMenuImages(homeMenuImages.filter(m => m.id !== id));
   };
@@ -281,7 +399,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   const handleDeleteVideo = async (id) => {
-    if (!confirm('Delete this video?')) return;
     await supabase.from('home_videos').delete().eq('id', id);
     setHomeVideos(homeVideos.filter(v => v.id !== id));
   };
@@ -290,7 +407,6 @@ export default function AdminDashboard() {
     const { error } = await supabase.from('home_videos').insert([{ video_url: 'a', display_order: newOrder }]);
     if (!error) fetchInitialData();
   };
-
 
   // --- ORDERS HANDLERS ---
   const handleToggleOrderStatus = async (id, currentStatus) => {
@@ -302,15 +418,39 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteOrder = async (id) => {
-    if (!confirm('Are you sure you want to delete this order?')) return;
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (!error) {
       setOrders(orders.filter(o => o.id !== id));
     }
   };
 
+  // --- WhatsApp Share to Rider Handler ---
+  const handleShareToRider = (order) => {
+    // Agar GPS coordinates mojood hain toh exact lat/lng use honge, warna manual address ki bajaye sirf City use hoga taake map kharab na ho
+    const mapsLink = (order.latitude && order.longitude)
+      ? `https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.city || 'Rawalpindi')}`;
+
+    const itemsText = order.items?.map(i => `▫️ ${i.title} (${i.size || 'Std'}) x ${i.quantity}`).join('\n') || '';
+
+    const message = ` *NEW ORDER FOR DELIVERY* \n\n` +
+      ` *Customer:* ${order.customer_name}\n` +
+      ` *Phone:* ${order.phone}\n` +
+      ` *Manual Address:* ${order.address} (${order.city}) ${order.apartment ? `| Apt: ${order.apartment}` : ''}\n` +
+      (order.detected_address ? `🛰️ *GPS Location:* ${order.detected_address}\n` : '') +
+      ` *Google Maps Direction:*\n${mapsLink}\n\n` +
+      ` *Ordered Items:*\n${itemsText}\n\n` +
+      ` *Total Amount:* Rs. ${order.total_amount}\n` +
+      ` *Payment:* ${order.payment_method}\n` +
+      ` *Type:* ${order.delivery_type}\n` +
+      (order.special_instructions ? ` *Instructions:* ${order.special_instructions}` : '');
+
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8 relative pb-24">
       <div className="max-w-[85rem] mx-auto">
         <header className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 border-b border-gray-800 pb-6">
           <h1 className="text-2xl sm:text-3xl font-black uppercase text-orange-500 tracking-wider">
@@ -332,6 +472,14 @@ export default function AdminDashboard() {
               }`}
             >
               Manage Home Page
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-5 py-2.5 rounded-xl font-bold uppercase text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'settings' ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              Store Status & Timing
             </button>
             <button
               onClick={() => setActiveTab('orders')}
@@ -364,7 +512,6 @@ export default function AdminDashboard() {
 
                 return (
                   <div key={cat.id} className="relative group/cat space-y-6">
-                    
                     <div className="relative flex items-center justify-center my-6">
                       <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700/60"></div></div>
                       <button
@@ -419,7 +566,6 @@ export default function AdminDashboard() {
 
                           return (
                             <div key={item.id} className="relative group/card">
-                              
                               <button
                                 type="button"
                                 onClick={() => handleInsertItemBetween(cat.id, currentOrder - 5)}
@@ -438,8 +584,7 @@ export default function AdminDashboard() {
                                 +
                               </button>
 
-                              <div className="bg-gray-800/90 backdrop-blur-xl p-4 rounded-3xl border border-gray-700/80 shadow-xl flex flex-col justify-between gap-3 h-full">
-                                
+                              <div className="bg-gray-800/95 backdrop-blur-xl p-4 rounded-3xl border border-gray-700/80 shadow-xl flex flex-col justify-between gap-3 h-full">
                                 <div className="flex justify-between items-center border-b border-gray-700/60 pb-2">
                                   <span className="text-[10px] font-black uppercase text-orange-400">Card #{index + 1}</span>
                                   <button
@@ -526,14 +671,14 @@ export default function AdminDashboard() {
                                               placeholder="Size"
                                               value={opt.size}
                                               onChange={(e) => handleSizeOptionChange(item.id, optIdx, 'size', e.target.value)}
-                                              className="w-1/2 p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
+                                              className="w-full p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
                                             />
                                             <input
                                               type="number"
                                               placeholder="Rs."
                                               value={opt.price}
                                               onChange={(e) => handleSizeOptionChange(item.id, optIdx, 'price', e.target.value)}
-                                              className="w-1/2 p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
+                                              className="w-full p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
                                             />
                                             {item.pricing_options.length > 1 && (
                                               <button
@@ -561,9 +706,7 @@ export default function AdminDashboard() {
                                     {loading ? 'Saving...' : '💾 Save Changes'}
                                   </button>
                                 </div>
-
                               </div>
-
                             </div>
                           );
                         })}
@@ -579,7 +722,6 @@ export default function AdminDashboard() {
                         + Add Card in {cat.name}
                       </button>
                     </div>
-
                   </div>
                 );
               })}
@@ -594,7 +736,6 @@ export default function AdminDashboard() {
                   <span>+ Add New Category Section</span>
                 </button>
               </div>
-
             </div>
           </div>
         )}
@@ -602,8 +743,6 @@ export default function AdminDashboard() {
         {/* TAB 2: MANAGE HOME PAGE */}
         {activeTab === 'home' && (
           <div className="space-y-16">
-            
-            {/* 1. Sliders Management */}
             <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
               <div className="flex justify-between items-center border-b border-gray-700 pb-4">
                 <div>
@@ -620,30 +759,26 @@ export default function AdminDashboard() {
                   <div key={slider.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
                     <div className="flex justify-between items-center text-xs font-black text-orange-400">
                       <span>Slide #{idx + 1}</span>
-                      <button onClick={() => handleDeleteSlider(slider.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
+                      <button onClick={() => handleDeleteSlider(slider.id)} className="text-red-400 font-bold">Delete</button>
                     </div>
                     <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
                       <img src={getImagePath(slider.img)} alt="Slider preview" className="w-full h-full object-cover" />
                     </div>
                     <div className="space-y-2">
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 1)</label>
-                        <input
-                          type="text"
-                          value={slider.img}
-                          onChange={(e) => handleSliderChange(slider.id, 'img', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Redirect Link</label>
-                        <input
-                          type="text"
-                          value={slider.link || ''}
-                          onChange={(e) => handleSliderChange(slider.id, 'link', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        value={slider.img}
+                        onChange={(e) => handleSliderChange(slider.id, 'img', e.target.value)}
+                        placeholder="Image No"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={slider.link || ''}
+                        onChange={(e) => handleSliderChange(slider.id, 'link', e.target.value)}
+                        placeholder="Link"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
                     </div>
                     <button onClick={() => handleSaveSlider(slider)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
                       Save Slider
@@ -652,170 +787,66 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
-
-            {/* 2. Promo Cards Management */}
-            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
-              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
-                <div>
-                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Promo Cards (3 Featured Images)</h2>
-                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 5, 6, 7)</p>
-                </div>
-                <button onClick={handleAddPromo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
-                  + Add Promo Card
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {homePromos.map((promo, idx) => (
-                  <div key={promo.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
-                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
-                      <span>Promo #{idx + 1}</span>
-                      <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
-                    </div>
-                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
-                      <img src={getImagePath(promo.img)} alt="Promo preview" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 5)</label>
-                        <input
-                          type="text"
-                          value={promo.img}
-                          onChange={(e) => handlePromoChange(promo.id, 'img', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Badge Text (optional)</label>
-                        <input
-                          type="text"
-                          value={promo.badge || ''}
-                          onChange={(e) => handlePromoChange(promo.id, 'badge', e.target.value)}
-                          placeholder="e.g. Most Popular"
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Link</label>
-                        <input
-                          type="text"
-                          value={promo.link || ''}
-                          onChange={(e) => handlePromoChange(promo.id, 'link', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                    </div>
-                    <button onClick={() => handleSavePromo(promo)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
-                      Save Promo
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. Signature Menu Images Management */}
-            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
-              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
-                <div>
-                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Signature Menu Grid Images</h2>
-                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 8, 9, 10)</p>
-                </div>
-                <button onClick={handleAddMenuImg} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
-                  + Add Grid Item
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {homeMenuImages.map((item, idx) => (
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
-                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
-                      <span>Grid #{idx + 1}</span>
-                      <button onClick={() => handleDeleteMenuImg(item.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
-                    </div>
-                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
-                      <img src={getImagePath(item.img)} alt="Grid preview" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Category Name</label>
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={(e) => handleMenuImgChange(item.id, 'name', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 8)</label>
-                        <input
-                          type="text"
-                          value={item.img}
-                          onChange={(e) => handleMenuImgChange(item.id, 'img', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-400 uppercase font-bold">Menu Target Slug</label>
-                        <input
-                          type="text"
-                          value={item.category_id || ''}
-                          onChange={(e) => handleMenuImgChange(item.id, 'category_id', e.target.value)}
-                          placeholder="e.g. burgers"
-                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
-                        />
-                      </div>
-                    </div>
-                    <button onClick={() => handleSaveMenuImg(item)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
-                      Save Grid Item
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 4. Action Videos Management */}
-            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
-              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
-                <div>
-                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Taste The Action Videos</h2>
-                  <p className="text-xs text-gray-400">Sirf video letter/name likhein (jaise: a, b, c)</p>
-                </div>
-                <button onClick={handleAddVideo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
-                  + Add Video
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
-                {homeVideos.map((vid, idx) => (
-                  <div key={vid.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
-                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
-                      <span>Video #{idx + 1}</span>
-                      <button onClick={() => handleDeleteVideo(vid.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
-                    </div>
-                    <div className="aspect-[9/16] bg-gray-950 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
-                      <video src={getVideoPath(vid.video_url)} muted className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-gray-400 uppercase font-bold">Video Name (e.g. a)</label>
-                      <input
-                        type="text"
-                        value={vid.video_url}
-                        onChange={(e) => handleVideoChange(vid.id, 'video_url', e.target.value)}
-                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none mt-1"
-                      />
-                    </div>
-                    <button onClick={() => handleSaveVideo(vid)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
-                      Save Video
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
           </div>
         )}
 
-        {/* TAB 3: LIVE ORDERS */}
+        {/* TAB 3: STORE STATUS & TIMINGS MANAGEMENT */}
+        {activeTab === 'settings' && (
+          <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-6">
+            <h2 className="text-xl font-extrabold text-orange-400 uppercase border-b border-gray-700 pb-4">
+              Store Operating Hours & Status Control
+            </h2>
+
+            <form onSubmit={handleSaveStoreSettings} className="space-y-6">
+              <div className="bg-gray-900 p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm uppercase text-white">Store Status</h3>
+                  <p className="text-xs text-gray-400">If toggled to closed, website will instantly show closed.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={storeSettings.is_open} 
+                    onChange={(e) => setStoreSettings({ ...storeSettings, is_open: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-14 h-7 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Opening Time</label>
+                  <input 
+                    type="time" 
+                    value={storeSettings.opening_time}
+                    onChange={(e) => setStoreSettings({ ...storeSettings, opening_time: e.target.value })}
+                    className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Closing Time</label>
+                  <input 
+                    type="time" 
+                    value={storeSettings.closing_time}
+                    onChange={(e) => setStoreSettings({ ...storeSettings, closing_time: e.target.value })}
+                    className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer"
+              >
+                {loading ? 'Saving...' : '💾 Save Store Settings'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 4: LIVE ORDERS */}
         {activeTab === 'orders' && (
           <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 shadow-xl">
             <h2 className="text-xl font-extrabold mb-6 text-orange-400 uppercase">Customer Live Orders</h2>
@@ -827,7 +858,6 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 {orders.map((order) => (
                   <div key={order.id} className="bg-gray-900 p-5 sm:p-6 rounded-2xl border border-gray-700 space-y-4">
-                    
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-800 pb-3">
                       <div className="flex items-center gap-3">
                         <span className="font-black text-orange-400 uppercase text-sm">Order #{order.id.slice(0, 6)}</span>
@@ -838,20 +868,66 @@ export default function AdminDashboard() {
                       <span className="text-xs text-gray-400">{new Date(order.created_at).toLocaleString()}</span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 3-Column Layout: Details | Mini Map + WhatsApp Button | Items */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       
-                      <div className="space-y-1.5 bg-gray-950/40 p-4 rounded-xl border border-gray-800">
+                      {/* Column 1: Customer Details */}
+                      <div className="space-y-1.5 bg-gray-950/40 p-4 rounded-xl border border-gray-800 md:col-span-1">
                         <h4 className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2">Customer Details</h4>
                         <p className="text-sm font-bold text-gray-200">{order.customer_name}</p>
                         <p className="text-xs text-gray-300">
                           <strong className="text-gray-400">Phone:</strong> <a href={`https://wa.me/${order.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline font-mono inline-flex items-center gap-1">{order.phone}</a>
                         </p>
-                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Address:</strong> {order.address} ({order.city})</p>
-                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Delivery Type:</strong> {order.delivery_type} {order.scheduled_time !== 'ASAP' && `(${order.scheduled_time})`}</p>
-                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Payment:</strong> {order.payment_method}</p>
+                        <p className="text-xs text-gray-300">
+                          <strong className="text-gray-400">Manual Address:</strong> {order.address} ({order.city}) {order.apartment && `| Apt: ${order.apartment}`}
+                        </p>
+                        {order.detected_address && (
+                          <p className="text-xs text-emerald-300 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 mt-1">
+                            <strong className="text-emerald-400">GPS Location:</strong> {order.detected_address}
+                          </p>
+                        )}
+                        {order.special_instructions && (
+                          <p className="text-xs text-orange-200/80 bg-orange-500/10 p-2 rounded-lg border border-orange-500/20 mt-1">
+                            <strong className="text-orange-400">Instructions:</strong> {order.special_instructions}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-300 pt-1"><strong className="text-gray-400">Payment:</strong> {order.payment_method}</p>
                       </div>
 
-                      <div className="space-y-2 bg-gray-950/40 p-4 rounded-xl border border-gray-800">
+                      {/* Column 2: Mini Map Preview & WhatsApp Share to Rider */}
+                      <div className="bg-gray-950/40 p-3 rounded-xl border border-gray-800 flex flex-col justify-between md:col-span-1">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2">Location Map</h4>
+                          {order.latitude && order.longitude ? (
+                            <div className="w-full h-36 rounded-lg overflow-hidden border border-gray-700 relative">
+                              <iframe
+                                title="Customer Location Map"
+                                width="100%"
+                                height="100%"
+                                frameBorder="0"
+                                scrolling="no"
+                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${order.longitude-0.005},${order.latitude-0.005},${order.longitude+0.005},${order.latitude+0.005}&layer=mapnik&marker=${order.latitude},${order.longitude}`}
+                                className="w-full h-full"
+                              ></iframe>
+                            </div>
+                          ) : (
+                            <div className="w-full h-36 bg-gray-900 rounded-lg flex items-center justify-center text-xs text-gray-500 font-bold uppercase text-center p-2">
+                              GPS Coordinates Unavailable
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Share to Rider Button */}
+                        <button
+                          onClick={() => handleShareToRider(order)}
+                          className="mt-3 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[11px] tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        >
+                          <span>💬</span> Share to Rider on WhatsApp
+                        </button>
+                      </div>
+
+                      {/* Column 3: Ordered Items */}
+                      <div className="space-y-2 bg-gray-950/40 p-4 rounded-xl border border-gray-800 md:col-span-1">
                         <h4 className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2">Ordered Items</h4>
                         <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                           {order.items && order.items.map((item, idx) => (
@@ -898,6 +974,36 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Floating Action Buttons (Bottom Right) - Silent Save & Reload */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
+        <button
+          onClick={handleSaveAll}
+          disabled={loading}
+          className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-xs tracking-wider rounded-2xl shadow-2xl shadow-emerald-950/60 flex items-center gap-2 transition-all cursor-pointer border border-emerald-400/30 active:scale-95 disabled:opacity-50"
+          title="Save all modifications across all tabs seamlessly"
+        >
+          <span className="text-base">💾</span>
+          <span>{loading ? 'Saving All...' : 'Save All Changes'}</span>
+        </button>
+
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-3.5 bg-gray-800 hover:bg-orange-600 text-white font-black uppercase text-xs tracking-wider rounded-2xl shadow-2xl shadow-black/60 flex items-center gap-2 transition-all cursor-pointer border border-gray-700 active:scale-95"
+          title="Reload Admin Panel"
+        >
+          <span className="text-base">🔄</span>
+          <span>Reload Panel</span>
+        </button>
+      </div>
     </div>
+  );
+}
+
+export default function AdminDashboard() {
+  return (
+    <AdminAuthGate>
+      <AdminDashboardContent />
+    </AdminAuthGate>
   );
 }
