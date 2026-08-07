@@ -1,15 +1,17 @@
+'use client';
+
 export default function AboutUsPage() {
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased py-16 px-6 sm:px-8 lg:px-12 relative z-0 transition-colors duration-500">
+    <div className="min-h-screen w-full bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased py-16 px-6 sm:px-8 lg:px-12 relative z-0 transition-colors duration-500 overflow-x-hidden">
       
       {/* Background Central High-Intensity Orange Light Reflection */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-full max-w-2xl h-[400px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
-      <div className="max-w-4xl mx-auto space-y-12 relative z-10">
+      <div className="max-w-4xl mx-auto space-y-12 relative z-10 w-full">
         
         {/* Header Section */}
         <div className="text-center space-y-4">
-          <span className="bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-orange-500/20">
+          <span className="inline-block bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-orange-500/20">
             The Ultimate Vibe
           </span>
           <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-tight text-gray-900 dark:text-white font-sans">

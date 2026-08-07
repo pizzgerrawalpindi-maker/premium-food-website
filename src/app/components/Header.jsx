@@ -7,6 +7,7 @@ export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isOpenNow, setIsOpenNow] = useState(true);
   
   // Modal State Management (Sign In vs Sign Up forms)
   const [authMode, setAuthMode] = useState('signin');
@@ -14,6 +15,24 @@ export default function Header() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Restaurant Timing Check (03:00 PM to 02:00 AM)
+  useEffect(() => {
+    const checkRestaurantStatus = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+      // Open if time is >= 900 minutes (3 PM) OR < 120 minutes (2 AM next day)
+      const isOpen = currentTimeInMinutes >= 900 || currentTimeInMinutes < 120;
+      setIsOpenNow(isOpen);
+    };
+
+    checkRestaurantStatus();
+    const interval = setInterval(checkRestaurantStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Sync Unique Cart Count & Theme State
   useEffect(() => {
@@ -71,77 +90,111 @@ export default function Header() {
 
   return (
     <>
-      {/* High-Impact, Modern Sticky Header with Rich Glassmorphism & Glow */}
-      <header className="sticky top-0 z-50 bg-white/90 dark:bg-[#120D0A]/90 backdrop-blur-2xl rounded-b-[2.5rem] border-b-2 border-orange-500/40 shadow-2xl shadow-orange-950/10 dark:shadow-orange-950/30 transition-all duration-300 relative overflow-hidden">
-        
-        {/* Ambient Orange Glow Effect Behind Header */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-[120px] bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-orange-500/20 blur-[50px] pointer-events-none -z-10" />
-
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 h-24 sm:h-28 flex items-center justify-between">
+      {/* Modern Cylindrical Floating Header */}
+      <header className="sticky top-3 sm:top-5 z-50 max-w-7xl mx-auto px-4 sm:px-8">
+        <div className="bg-white/90 dark:bg-[#120D0A]/90 backdrop-blur-2xl rounded-3xl sm:rounded-full border-2 border-orange-500/40 shadow-2xl shadow-orange-950/15 dark:shadow-orange-950/40 transition-all duration-300 overflow-hidden relative">
           
-          {/* Logo & Brand Section */}
-          <Link href="/" className="group flex items-center gap-3.5">
-            <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-amber-500 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-300" />
-              <img 
-                src="/logo.webp" 
-                alt="Pizzger Logo" 
-                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-white dark:border-[#1c1410] shadow-lg"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-2xl sm:text-3xl font-black tracking-tighter text-neutral-900 dark:text-white uppercase leading-none">
-                PIZZGER<span className="text-orange-500">.</span>
-              </span>
-              <span className="text-[10px] sm:text-xs font-bold text-neutral-500 dark:text-orange-200/70 uppercase tracking-widest mt-1">
-                Daily Dose Of Delicious
-              </span>
-            </div>
-          </Link>
+          {/* Ambient Orange Glow Effect Behind Header */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-30 bg-linear-to-r from-orange-500/20 via-amber-500/20 to-orange-500/20 blur-[50px] pointer-events-none -z-10" />
 
-          {/* Interactive Actions Section */}
-          <div className="flex items-center gap-3 sm:gap-4 text-neutral-800 dark:text-neutral-100">
+          <div className="px-4 sm:px-10 py-3 sm:py-2 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
             
-            {/* Search Button */}
-            <Link 
-              href="/search" 
-              className="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-[#1a120e] hover:bg-orange-500 hover:text-white dark:hover:bg-orange-600 flex items-center justify-center transition-all duration-300 shadow-sm border border-neutral-200/60 dark:border-orange-500/20" 
-              aria-label="Search"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </Link>
+            <div className="flex items-center justify-between w-full sm:w-auto">
+              {/* Logo & Brand Section with Circular Container */}
+              <Link href="/" className="group flex items-center gap-3">
+                <div className="relative">
+                  <div className="absolute -inset-1 bg-linear-to-r from-orange-600 to-amber-500 rounded-full blur opacity-75 group-hover:opacity-100 transition duration-300" />
+                  <img 
+                    src="/images/logo.webp" 
+                    alt="Pizzger Logo" 
+                    className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-white dark:border-[#1c1410] shadow-lg"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xl sm:text-2xl font-black tracking-tighter text-neutral-900 dark:text-white uppercase leading-none">
+                    ᑭIᘔᘔGEᖇ
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-neutral-500 dark:text-orange-200/70 uppercase tracking-widest mt-1">
+                    𝕯𝖆𝖎𝖑𝖞 𝕯𝖔𝖘𝖊 𝕺𝖋 𝕯𝖊𝖑𝖎𝖈𝖎𝖔𝖚𝖘
+                  </span>
+                </div>
+              </Link>
 
-            {/* Cart Button */}
-            <Link 
-              href="/cart" 
-              className="relative w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-[#1a120e] hover:bg-orange-500 hover:text-white dark:hover:bg-orange-600 flex items-center justify-center transition-all duration-300 shadow-sm border border-neutral-200/60 dark:border-orange-500/20" 
-              aria-label="Cart"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-orange-600 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full font-black shadow-lg shadow-orange-600/50 border-2 border-white dark:border-[#120D0A] animate-pulse">
-                  {cartCount}
+              {/* Mobile Action Controls Group */}
+              <div className="flex items-center gap-2 sm:hidden text-neutral-800 dark:text-neutral-100">
+                <Link 
+                  href="/cart" 
+                  className="relative w-10 h-10 rounded-full bg-neutral-100 dark:bg-[#1a120e] hover:bg-orange-500 hover:text-white flex items-center justify-center transition-all shadow-sm border border-neutral-200/60 dark:border-orange-500/20" 
+                  aria-label="Cart"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-orange-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black shadow-md border border-white dark:border-[#120D0A]">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
+
+                <button 
+                  onClick={() => setIsMenuOpen(true)}
+                  className="w-10 h-10 rounded-full bg-neutral-900 dark:bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+                  aria-label="Open Menu"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Timings / Status Badge (Visible on both Mobile and Desktop) */}
+            <div className="flex items-center justify-center gap-2 px-4 py-1.5 sm:py-2 rounded-full bg-neutral-100/90 dark:bg-[#1a120e]/90 border border-neutral-200/60 dark:border-orange-500/20 shadow-sm w-full sm:w-auto">
+              <span className={`w-2.5 h-2.5 rounded-full animate-ping shrink-0 ${isOpenNow ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <div className="flex flex-col items-center sm:items-start">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 dark:text-orange-200/60 leading-none">
+                  {isOpenNow ? 'Timing' : 'Status'}
                 </span>
-              )}
-            </Link>
+                <span className={`text-[11px] sm:text-xs font-extrabold tracking-wide mt-0.5 ${isOpenNow ? 'text-neutral-800 dark:text-orange-100' : 'text-red-500 dark:text-red-400 font-black'}`}>
+                  {isOpenNow ? '03:00 PM - 02:00 AM' : 'We Are Closed'}
+                </span>
+              </div>
+            </div>
 
-            {/* Menu Drawer Trigger */}
-            <button 
-              onClick={() => setIsMenuOpen(true)}
-              className="w-12 h-12 rounded-2xl bg-neutral-900 dark:bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center transition-all duration-300 shadow-lg shadow-orange-600/20 active:scale-95 cursor-pointer"
-              aria-label="Open Menu"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+            {/* Desktop Interactive Actions Section */}
+            <div className="hidden sm:flex items-center gap-3.5 text-neutral-800 dark:text-neutral-100">
+              
+              {/* Cart Button */}
+              <Link 
+                href="/cart" 
+                className="relative w-12 h-12 rounded-full bg-neutral-100 dark:bg-[#1a120e] hover:bg-orange-500 hover:text-white dark:hover:bg-orange-600 flex items-center justify-center transition-all duration-300 shadow-sm border border-neutral-200/60 dark:border-orange-500/20" 
+                aria-label="Cart"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-orange-600 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full font-black shadow-lg shadow-orange-600/50 border-2 border-white dark:border-[#120D0A] animate-pulse">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* Menu Drawer Trigger */}
+              <button 
+                onClick={() => setIsMenuOpen(true)}
+                className="w-12 h-12 rounded-full bg-neutral-900 dark:bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center transition-all duration-300 shadow-lg shadow-orange-600/20 active:scale-95 cursor-pointer"
+                aria-label="Open Menu"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+            </div>
 
           </div>
-
         </div>
       </header>
 
@@ -168,7 +221,7 @@ export default function Header() {
                   </span>
                   <button 
                     onClick={() => setIsMenuOpen(false)}
-                    className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-[#1c1410] text-neutral-700 dark:text-orange-200 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm"
+                    className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-[#1c1410] text-neutral-700 dark:text-orange-200 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm"
                     aria-label="Close Menu"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

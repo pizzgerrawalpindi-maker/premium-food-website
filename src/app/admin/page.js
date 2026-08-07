@@ -1,0 +1,903 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+
+// Helper functions for smart path handling in admin
+// Helper functions for smart path handling in admin
+const getImagePath = (imgVal) => {
+  if (!imgVal || imgVal.trim() === '') return '/images/placeholder.webp';
+  if (imgVal.startsWith('/') || imgVal.startsWith('http')) return imgVal;
+  return `/images/${imgVal}.webp`;
+};
+
+const getVideoPath = (vidVal) => {
+  if (!vidVal || vidVal.trim() === '') return undefined; // ⚡ Fix: returns undefined instead of "" to prevent browser reload error
+  if (vidVal.startsWith('/') || vidVal.startsWith('http')) return vidVal;
+  return `/videos/${vidVal}.webm`;
+};
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState('menu');
+  const [categories, setCategories] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [orders, setOrders] = useState([]);
+  
+  // Home Management States
+  const [homeSliders, setHomeSliders] = useState([]);
+  const [homePromos, setHomePromos] = useState([]);
+  const [homeMenuImages, setHomeMenuImages] = useState([]);
+  const [homeVideos, setHomeVideos] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  async function fetchInitialData() {
+    try {
+      const [
+        { data: catData },
+        { data: itemData },
+        { data: orderData },
+        { data: sliderData },
+        { data: promoData },
+        { data: menuImgData },
+        { data: vidData }
+      ] = await Promise.all([
+        supabase.from('categories').select('*').order('display_order', { ascending: true }),
+        supabase.from('menu_items').select('*').order('display_order', { ascending: true }),
+        supabase.from('orders').select('*').order('created_at', { ascending: false }),
+        supabase.from('home_sliders').select('*').order('display_order', { ascending: true }),
+        supabase.from('home_promos').select('*').order('display_order', { ascending: true }),
+        supabase.from('home_menu_images').select('*').order('display_order', { ascending: true }),
+        supabase.from('home_videos').select('*').order('display_order', { ascending: true }),
+      ]);
+
+      setCategories(catData || []);
+      setMenuItems(itemData || []);
+      setOrders(orderData || []);
+      setHomeSliders(sliderData || []);
+      setHomePromos(promoData || []);
+      setHomeMenuImages(menuImgData || []);
+      setHomeVideos(vidData || []);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    }
+  }
+
+  // --- MENU & CATEGORIES HANDLERS ---
+  const handleItemChange = (id, field, value) => {
+    setMenuItems(menuItems.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const handleCategoryChange = (id, field, value) => {
+    setCategories(categories.map(cat => cat.id === id ? { ...cat, [field]: value } : cat));
+  };
+
+  const handlePricingTypeChange = (id, type) => {
+    setMenuItems(menuItems.map(item => {
+      if (item.id === id) {
+        if (type === 'fix') {
+          return { ...item, pricing_type: 'fix', price: 0, pricing_options: null };
+        } else {
+          return { ...item, pricing_type: 'size', price: null, pricing_options: [{ size: 'Regular', price: '' }] };
+        }
+      }
+      return item;
+    }));
+  };
+
+  const handleSizeOptionChange = (itemId, index, field, value) => {
+    setMenuItems(menuItems.map(item => {
+      if (item.id === itemId) {
+        const updatedOptions = [...(item.pricing_options || [])];
+        updatedOptions[index][field] = value;
+        return { ...item, pricing_options: updatedOptions };
+      }
+      return item;
+    }));
+  };
+
+  const addSizeOption = (itemId) => {
+    setMenuItems(menuItems.map(item => {
+      if (item.id === itemId) {
+        return { ...item, pricing_options: [...(item.pricing_options || []), { size: '', price: '' }] };
+      }
+      return item;
+    }));
+  };
+
+  const removeSizeOption = (itemId, index) => {
+    setMenuItems(menuItems.map(item => {
+      if (item.id === itemId) {
+        const updatedOptions = item.pricing_options.filter((_, i) => i !== index);
+        return { ...item, pricing_options: updatedOptions };
+      }
+      return item;
+    }));
+  };
+
+  const handleSaveItem = async (item) => {
+    setLoading(true);
+    try {
+      const payload = {
+        title: item.title,
+        description: item.description,
+        image_num: item.image_num !== '' && item.image_num !== null ? parseInt(item.image_num) : null,
+        price: item.pricing_options && item.pricing_options.length > 0 ? null : parseFloat(item.price || 0),
+        pricing_options: item.pricing_options && item.pricing_options.length > 0 ? item.pricing_options : null,
+      };
+
+      const { error } = await supabase.from('menu_items').update(payload).eq('id', item.id);
+      if (error) console.error('Failed to save item: ' + error.message);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCategory = async (cat) => {
+    setLoading(true);
+    try {
+      const payload = {
+        name: cat.name,
+        slug: cat.slug || cat.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      };
+
+      const { error } = await supabase.from('categories').update(payload).eq('id', cat.id);
+      if (error) console.error('Failed to save category: ' + error.message);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteItem = async (id) => {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+    const { error } = await supabase.from('menu_items').delete().eq('id', id);
+    if (!error) {
+      setMenuItems(menuItems.filter(item => item.id !== id));
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!confirm('Are you sure you want to delete this category? All items inside it might be affected.')) return;
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (!error) {
+      setCategories(categories.filter(cat => cat.id !== id));
+    }
+  };
+
+  const handleInsertItemBetween = async (categoryId, targetOrder) => {
+    const newOrder = targetOrder + 5;
+    const itemsToShift = menuItems.filter(item => item.category_id === categoryId && (item.display_order || 0) >= newOrder);
+    
+    for (const itm of itemsToShift) {
+      await supabase.from('menu_items').update({ display_order: (itm.display_order || 0) + 10 }).eq('id', itm.id);
+    }
+
+    const newItem = {
+      title: 'New Deal / Item',
+      description: 'Enter description here...',
+      price: 500,
+      image_num: null,
+      category_id: categoryId,
+      display_order: newOrder,
+      pricing_options: null
+    };
+
+    const { error } = await supabase.from('menu_items').insert([newItem]);
+    if (error) console.error('Failed to insert card: ' + error.message);
+    else fetchInitialData();
+  };
+
+  const handleInsertCategoryBetween = async (targetOrder) => {
+    const newOrder = targetOrder + 5;
+    const catsToShift = categories.filter(cat => (cat.display_order || 0) >= newOrder);
+
+    for (const c of catsToShift) {
+      await supabase.from('categories').update({ display_order: (c.display_order || 0) + 10 }).eq('id', c.id);
+    }
+
+    const newCat = {
+      name: 'New Category',
+      slug: 'new-category-' + Date.now(),
+      display_order: newOrder
+    };
+
+    const { error } = await supabase.from('categories').insert([newCat]);
+    if (error) console.error('Failed to insert category: ' + error.message);
+    else fetchInitialData();
+  };
+
+
+  // --- HOME PAGE MANAGEMENT HANDLERS ---
+  const handleSliderChange = (id, field, value) => {
+    setHomeSliders(homeSliders.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+  const handleSaveSlider = async (slider) => {
+    setLoading(true);
+    await supabase.from('home_sliders').update({ img: slider.img, link: slider.link }).eq('id', slider.id);
+    setLoading(false);
+  };
+  const handleDeleteSlider = async (id) => {
+    if (!confirm('Delete this slider?')) return;
+    await supabase.from('home_sliders').delete().eq('id', id);
+    setHomeSliders(homeSliders.filter(s => s.id !== id));
+  };
+  const handleAddSlider = async () => {
+    const newOrder = homeSliders.length > 0 ? homeSliders[homeSliders.length - 1].display_order + 10 : 10;
+    const { error } = await supabase.from('home_sliders').insert([{ img: '1', link: '/menu', display_order: newOrder }]);
+    if (!error) fetchInitialData();
+  };
+
+  const handlePromoChange = (id, field, value) => {
+    setHomePromos(homePromos.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+  const handleSavePromo = async (promo) => {
+    setLoading(true);
+    await supabase.from('home_promos').update({ img: promo.img, link: promo.link, badge: promo.badge }).eq('id', promo.id);
+    setLoading(false);
+  };
+  const handleDeletePromo = async (id) => {
+    if (!confirm('Delete this promo card?')) return;
+    await supabase.from('home_promos').delete().eq('id', id);
+    setHomePromos(homePromos.filter(p => p.id !== id));
+  };
+  const handleAddPromo = async () => {
+    const newOrder = homePromos.length > 0 ? homePromos[homePromos.length - 1].display_order + 10 : 10;
+    const { error } = await supabase.from('home_promos').insert([{ img: '5', link: '/menu', badge: '', display_order: newOrder }]);
+    if (!error) fetchInitialData();
+  };
+
+  const handleMenuImgChange = (id, field, value) => {
+    setHomeMenuImages(homeMenuImages.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+  const handleSaveMenuImg = async (item) => {
+    setLoading(true);
+    await supabase.from('home_menu_images').update({ img: item.img, name: item.name, category_id: item.category_id }).eq('id', item.id);
+    setLoading(false);
+  };
+  const handleDeleteMenuImg = async (id) => {
+    if (!confirm('Delete this signature item?')) return;
+    await supabase.from('home_menu_images').delete().eq('id', id);
+    setHomeMenuImages(homeMenuImages.filter(m => m.id !== id));
+  };
+  const handleAddMenuImg = async () => {
+    const newOrder = homeMenuImages.length > 0 ? homeMenuImages[homeMenuImages.length - 1].display_order + 10 : 10;
+    const { error } = await supabase.from('home_menu_images').insert([{ img: '8', name: 'NEW CATEGORY', category_id: 'burgers', display_order: newOrder }]);
+    if (!error) fetchInitialData();
+  };
+
+  const handleVideoChange = (id, field, value) => {
+    setHomeVideos(homeVideos.map(v => v.id === id ? { ...v, [field]: value } : v));
+  };
+  const handleSaveVideo = async (vid) => {
+    setLoading(true);
+    await supabase.from('home_videos').update({ video_url: vid.video_url }).eq('id', vid.id);
+    setLoading(false);
+  };
+  const handleDeleteVideo = async (id) => {
+    if (!confirm('Delete this video?')) return;
+    await supabase.from('home_videos').delete().eq('id', id);
+    setHomeVideos(homeVideos.filter(v => v.id !== id));
+  };
+  const handleAddVideo = async () => {
+    const newOrder = homeVideos.length > 0 ? homeVideos[homeVideos.length - 1].display_order + 10 : 10;
+    const { error } = await supabase.from('home_videos').insert([{ video_url: 'a', display_order: newOrder }]);
+    if (!error) fetchInitialData();
+  };
+
+
+  // --- ORDERS HANDLERS ---
+  const handleToggleOrderStatus = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
+    const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    if (!error) {
+      setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    }
+  };
+
+  const handleDeleteOrder = async (id) => {
+    if (!confirm('Are you sure you want to delete this order?')) return;
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (!error) {
+      setOrders(orders.filter(o => o.id !== id));
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
+      <div className="max-w-[85rem] mx-auto">
+        <header className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 border-b border-gray-800 pb-6">
+          <h1 className="text-2xl sm:text-3xl font-black uppercase text-orange-500 tracking-wider">
+            Restaurant Admin Panel
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`px-5 py-2.5 rounded-xl font-bold uppercase text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'menu' ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              Manage Menu
+            </button>
+            <button
+              onClick={() => setActiveTab('home')}
+              className={`px-5 py-2.5 rounded-xl font-bold uppercase text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'home' ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              Manage Home Page
+            </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-5 py-2.5 rounded-xl font-bold uppercase text-xs sm:text-sm transition-all cursor-pointer relative ${
+                activeTab === 'orders' ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              Live Orders
+              {orders.filter(o => o.status !== 'Completed').length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-xs rounded-full flex items-center justify-center font-black">
+                  {orders.filter(o => o.status !== 'Completed').length}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* TAB 1: MANAGE MENU & CATEGORIES */}
+        {activeTab === 'menu' && (
+          <div className="space-y-16">
+            <div className="flex justify-between items-center bg-gray-800/60 p-5 rounded-2xl border border-gray-700/60">
+              <h2 className="text-lg font-extrabold text-orange-400 uppercase">Interactive Menu Layout</h2>
+              <p className="text-xs text-gray-400">Use stylish lines & <strong className="text-orange-400">(+)</strong> icons to insert items or categories anywhere smoothly.</p>
+            </div>
+
+            <div className="space-y-16">
+              {categories.map((cat, catIdx) => {
+                const categoryItems = menuItems.filter(item => item.category_id === cat.id);
+                const currentCatOrder = cat.display_order || (catIdx * 10);
+
+                return (
+                  <div key={cat.id} className="relative group/cat space-y-6">
+                    
+                    <div className="relative flex items-center justify-center my-6">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700/60"></div></div>
+                      <button
+                        type="button"
+                        onClick={() => handleInsertCategoryBetween(currentCatOrder - 5)}
+                        className="relative z-10 w-8 h-8 bg-gray-800 hover:bg-orange-600 text-orange-400 hover:text-white rounded-full border border-gray-700 flex items-center justify-center font-black shadow-lg transition-all cursor-pointer"
+                        title="Insert new category section here"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <span className="text-xs font-black uppercase text-orange-400">Category #{catIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={cat.name}
+                          onChange={(e) => handleCategoryChange(cat.id, 'name', e.target.value)}
+                          className="p-2 rounded-xl bg-gray-900 border border-gray-700 text-white font-black uppercase text-sm outline-none focus:border-orange-500"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => handleSaveCategory(cat)}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase rounded-xl shadow-md transition-all cursor-pointer"
+                        >
+                          💾 Save Category
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="px-3 py-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white font-bold text-xs uppercase rounded-xl transition-all cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    {categoryItems.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 text-xs uppercase font-bold tracking-wider bg-gray-800/30 rounded-2xl border border-gray-800">
+                        No items in this category yet. Click "+ Add Card" below.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {categoryItems.map((item, index) => {
+                          const isSizeWise = item.pricing_options && item.pricing_options.length > 0;
+                          const currentOrder = item.display_order || (index * 10);
+
+                          return (
+                            <div key={item.id} className="relative group/card">
+                              
+                              <button
+                                type="button"
+                                onClick={() => handleInsertItemBetween(cat.id, currentOrder - 5)}
+                                className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-7 h-7 bg-orange-600 hover:bg-orange-500 text-white rounded-full flex items-center justify-center font-black shadow-lg opacity-0 group-hover/card:opacity-100 transition-all cursor-pointer"
+                                title="Insert new card before this"
+                              >
+                                +
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleInsertItemBetween(cat.id, currentOrder)}
+                                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-7 h-7 bg-orange-600 hover:bg-orange-500 text-white rounded-full flex items-center justify-center font-black shadow-lg opacity-0 group-hover/card:opacity-100 transition-all cursor-pointer"
+                                title="Insert new card after this"
+                              >
+                                +
+                              </button>
+
+                              <div className="bg-gray-800/90 backdrop-blur-xl p-4 rounded-3xl border border-gray-700/80 shadow-xl flex flex-col justify-between gap-3 h-full">
+                                
+                                <div className="flex justify-between items-center border-b border-gray-700/60 pb-2">
+                                  <span className="text-[10px] font-black uppercase text-orange-400">Card #{index + 1}</span>
+                                  <button
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="text-red-400 hover:text-red-300 p-1 rounded-md hover:bg-red-500/10 transition-all cursor-pointer"
+                                    title="Delete Card"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                  </button>
+                                </div>
+
+                                <div className="space-y-2 grow">
+                                  <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Title</label>
+                                    <input
+                                      type="text"
+                                      value={item.title || ''}
+                                      onChange={(e) => handleItemChange(item.id, 'title', e.target.value)}
+                                      className="w-full p-2 rounded-xl bg-gray-900 border border-gray-700 text-white text-xs outline-none focus:border-orange-500 font-medium"
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Image No</label>
+                                      <input
+                                        type="number"
+                                        value={item.image_num ?? ''}
+                                        onChange={(e) => handleItemChange(item.id, 'image_num', e.target.value)}
+                                        placeholder="e.g. 19"
+                                        className="w-full p-2 rounded-xl bg-gray-900 border border-gray-700 text-white text-xs outline-none focus:border-orange-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Pricing Type</label>
+                                      <select
+                                        value={isSizeWise ? 'size' : 'fix'}
+                                        onChange={(e) => handlePricingTypeChange(item.id, e.target.value)}
+                                        className="w-full p-2 rounded-xl bg-gray-900 border border-gray-700 text-white text-[11px] outline-none focus:border-orange-500 cursor-pointer font-medium"
+                                      >
+                                        <option value="fix">Fix Price</option>
+                                        <option value="size">Size Wise</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Description</label>
+                                    <textarea
+                                      rows="2"
+                                      value={item.description || ''}
+                                      onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
+                                      className="w-full p-2 rounded-xl bg-gray-900 border border-gray-700 text-white text-xs outline-none focus:border-orange-500 font-medium resize-none"
+                                    ></textarea>
+                                  </div>
+
+                                  {!isSizeWise ? (
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-0.5">Price (Rs.)</label>
+                                      <input
+                                        type="number"
+                                        value={item.price || ''}
+                                        onChange={(e) => handleItemChange(item.id, 'price', e.target.value)}
+                                        className="w-full p-2 rounded-xl bg-gray-900 border border-gray-700 text-white text-xs outline-none focus:border-orange-500 font-bold"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="bg-gray-900/80 p-2.5 rounded-xl border border-gray-700 space-y-2">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase text-orange-400">Sizes & Prices</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => addSizeOption(item.id)}
+                                          className="px-2 py-0.5 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-bold rounded uppercase cursor-pointer"
+                                        >
+                                          + Add Size
+                                        </button>
+                                      </div>
+                                      <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                                        {item.pricing_options?.map((opt, optIdx) => (
+                                          <div key={optIdx} className="flex items-center gap-1.5">
+                                            <input
+                                              type="text"
+                                              placeholder="Size"
+                                              value={opt.size}
+                                              onChange={(e) => handleSizeOptionChange(item.id, optIdx, 'size', e.target.value)}
+                                              className="w-1/2 p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
+                                            />
+                                            <input
+                                              type="number"
+                                              placeholder="Rs."
+                                              value={opt.price}
+                                              onChange={(e) => handleSizeOptionChange(item.id, optIdx, 'price', e.target.value)}
+                                              className="w-1/2 p-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-[11px] outline-none"
+                                            />
+                                            {item.pricing_options.length > 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => removeSizeOption(item.id, optIdx)}
+                                                className="text-red-400 hover:text-red-300 font-bold px-1 text-xs"
+                                              >
+                                                ✕
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="pt-2 mt-auto">
+                                  <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => handleSaveItem(item)}
+                                    className="w-full py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-extrabold uppercase text-[11px] tracking-widest shadow-md shadow-orange-600/30 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {loading ? 'Saving...' : '💾 Save Changes'}
+                                  </button>
+                                </div>
+
+                              </div>
+
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="flex justify-center pt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleInsertItemBetween(cat.id, categoryItems.length > 0 ? (categoryItems[categoryItems.length - 1].display_order || 0) : 0)}
+                        className="px-4 py-2 bg-gray-800 hover:bg-orange-600 text-orange-400 hover:text-white rounded-xl border border-gray-700 text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer"
+                      >
+                        + Add Card in {cat.name}
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+
+              <div className="relative flex items-center justify-center my-10">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700/60"></div></div>
+                <button
+                  type="button"
+                  onClick={() => handleInsertCategoryBetween(categories.length > 0 ? (categories[categories.length - 1].display_order || 0) : 0)}
+                  className="relative z-10 px-5 py-2 bg-gray-800 hover:bg-orange-600 text-orange-400 hover:text-white rounded-full border border-gray-700 flex items-center gap-2 font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                >
+                  <span>+ Add New Category Section</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: MANAGE HOME PAGE */}
+        {activeTab === 'home' && (
+          <div className="space-y-16">
+            
+            {/* 1. Sliders Management */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Home Page Sliders</h2>
+                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 1, 2, 3)</p>
+                </div>
+                <button onClick={handleAddSlider} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Slider Image
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {homeSliders.map((slider, idx) => (
+                  <div key={slider.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Slide #{idx + 1}</span>
+                      <button onClick={() => handleDeleteSlider(slider.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+                      <img src={getImagePath(slider.img)} alt="Slider preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 1)</label>
+                        <input
+                          type="text"
+                          value={slider.img}
+                          onChange={(e) => handleSliderChange(slider.id, 'img', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Redirect Link</label>
+                        <input
+                          type="text"
+                          value={slider.link || ''}
+                          onChange={(e) => handleSliderChange(slider.id, 'link', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button onClick={() => handleSaveSlider(slider)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Slider
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Promo Cards Management */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Promo Cards (3 Featured Images)</h2>
+                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 5, 6, 7)</p>
+                </div>
+                <button onClick={handleAddPromo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Promo Card
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {homePromos.map((promo, idx) => (
+                  <div key={promo.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Promo #{idx + 1}</span>
+                      <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+                      <img src={getImagePath(promo.img)} alt="Promo preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 5)</label>
+                        <input
+                          type="text"
+                          value={promo.img}
+                          onChange={(e) => handlePromoChange(promo.id, 'img', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Badge Text (optional)</label>
+                        <input
+                          type="text"
+                          value={promo.badge || ''}
+                          onChange={(e) => handlePromoChange(promo.id, 'badge', e.target.value)}
+                          placeholder="e.g. Most Popular"
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Link</label>
+                        <input
+                          type="text"
+                          value={promo.link || ''}
+                          onChange={(e) => handlePromoChange(promo.id, 'link', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button onClick={() => handleSavePromo(promo)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Promo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Signature Menu Images Management */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Signature Menu Grid Images</h2>
+                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 8, 9, 10)</p>
+                </div>
+                <button onClick={handleAddMenuImg} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Grid Item
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {homeMenuImages.map((item, idx) => (
+                  <div key={item.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Grid #{idx + 1}</span>
+                      <button onClick={() => handleDeleteMenuImg(item.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+                      <img src={getImagePath(item.img)} alt="Grid preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Category Name</label>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => handleMenuImgChange(item.id, 'name', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Image Number (e.g. 8)</label>
+                        <input
+                          type="text"
+                          value={item.img}
+                          onChange={(e) => handleMenuImgChange(item.id, 'img', e.target.value)}
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 uppercase font-bold">Menu Target Slug</label>
+                        <input
+                          type="text"
+                          value={item.category_id || ''}
+                          onChange={(e) => handleMenuImgChange(item.id, 'category_id', e.target.value)}
+                          placeholder="e.g. burgers"
+                          className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button onClick={() => handleSaveMenuImg(item)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Grid Item
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Action Videos Management */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Taste The Action Videos</h2>
+                  <p className="text-xs text-gray-400">Sirf video letter/name likhein (jaise: a, b, c)</p>
+                </div>
+                <button onClick={handleAddVideo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Video
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
+                {homeVideos.map((vid, idx) => (
+                  <div key={vid.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Video #{idx + 1}</span>
+                      <button onClick={() => handleDeleteVideo(vid.id)} className="text-red-400 hover:text-red-300 font-bold">Delete</button>
+                    </div>
+                    <div className="aspect-[9/16] bg-gray-950 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
+                      <video src={getVideoPath(vid.video_url)} muted className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 uppercase font-bold">Video Name (e.g. a)</label>
+                      <input
+                        type="text"
+                        value={vid.video_url}
+                        onChange={(e) => handleVideoChange(vid.id, 'video_url', e.target.value)}
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none mt-1"
+                      />
+                    </div>
+                    <button onClick={() => handleSaveVideo(vid)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Video
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 3: LIVE ORDERS */}
+        {activeTab === 'orders' && (
+          <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 shadow-xl">
+            <h2 className="text-xl font-extrabold mb-6 text-orange-400 uppercase">Customer Live Orders</h2>
+            {orders.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 font-bold uppercase tracking-wider">
+                No active orders found right now.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {orders.map((order) => (
+                  <div key={order.id} className="bg-gray-900 p-5 sm:p-6 rounded-2xl border border-gray-700 space-y-4">
+                    
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-800 pb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="font-black text-orange-400 uppercase text-sm">Order #{order.id.slice(0, 6)}</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${order.status === 'Completed' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                          {order.status || 'Pending'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400">{new Date(order.created_at).toLocaleString()}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      <div className="space-y-1.5 bg-gray-950/40 p-4 rounded-xl border border-gray-800">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2">Customer Details</h4>
+                        <p className="text-sm font-bold text-gray-200">{order.customer_name}</p>
+                        <p className="text-xs text-gray-300">
+                          <strong className="text-gray-400">Phone:</strong> <a href={`https://wa.me/${order.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline font-mono inline-flex items-center gap-1">{order.phone}</a>
+                        </p>
+                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Address:</strong> {order.address} ({order.city})</p>
+                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Delivery Type:</strong> {order.delivery_type} {order.scheduled_time !== 'ASAP' && `(${order.scheduled_time})`}</p>
+                        <p className="text-xs text-gray-300"><strong className="text-gray-400">Payment:</strong> {order.payment_method}</p>
+                      </div>
+
+                      <div className="space-y-2 bg-gray-950/40 p-4 rounded-xl border border-gray-800">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2">Ordered Items</h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                          {order.items && order.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-xs border-b border-gray-800/60 pb-1.5">
+                              <div>
+                                <span className="font-bold text-white uppercase">{item.title}</span>
+                                <span className="text-gray-400 block text-[10px]">Size: {item.size} | Qty: {item.quantity}</span>
+                              </div>
+                              <span className="font-black text-orange-400">Rs. {item.price * item.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2 border-t border-gray-800">
+                      <div>
+                        <span className="text-xs text-gray-400 uppercase tracking-wider font-bold">Total Amount: </span>
+                        <span className="text-xl font-black text-orange-500">Rs. {order.total_amount}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          onClick={() => handleToggleOrderStatus(order.id, order.status)}
+                          className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${order.status === 'Completed' ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                        >
+                          {order.status === 'Completed' ? 'Mark Pending' : 'Mark Completed'}
+                        </button>
+                        
+                        <button
+                          onClick={() => handleDeleteOrder(order.id)}
+                          className="px-4 py-2 rounded-xl bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                        >
+                          Delete Order
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
