@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import MenuClientWrapper from './MenuClientWrapper';
+export const dynamic = 'force-dynamic';
 
 // ⚡ Ye Server Component hai ('use client' NAHI hai yahan) — data yahan
 // server par fetch hota hai, isliye jab HTML customer ke browser tak pohanchta

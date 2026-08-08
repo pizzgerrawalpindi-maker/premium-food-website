@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import HomeClientWrapper from './HomeClientWrapper';
+export const dynamic = 'force-dynamic';
 
 // ⚡ Server-Side Data Fetching from Supabase
 async function getHomeData() {
