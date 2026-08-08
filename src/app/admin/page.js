@@ -787,6 +787,152 @@ function AdminDashboardContent() {
                 ))}
               </div>
             </div>
+            {/* PROMOS SECTION */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Home Page Promos</h2>
+                  <p className="text-xs text-gray-400">Sirf image number likhein (jaise: 5, 6, 7). Badge optional hai.</p>
+                </div>
+                <button onClick={handleAddPromo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Promo
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {homePromos.map((promo, idx) => (
+                  <div key={promo.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Promo #{idx + 1}</span>
+                      <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+                      <img src={getImagePath(promo.img)} alt="Promo preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={promo.img}
+                        onChange={(e) => handlePromoChange(promo.id, 'img', e.target.value)}
+                        placeholder="Image No"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={promo.link || ''}
+                        onChange={(e) => handlePromoChange(promo.id, 'link', e.target.value)}
+                        placeholder="Link"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={promo.badge || ''}
+                        onChange={(e) => handlePromoChange(promo.id, 'badge', e.target.value)}
+                        placeholder="Badge (e.g. Most Popular) - optional"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                    </div>
+                    <button onClick={() => handleSavePromo(promo)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Promo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* HOME MENU CATEGORY IMAGES SECTION */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Home Menu Category Images</h2>
+                  <p className="text-xs text-gray-400">Home page par jo category icons dikhte hain (BURGERS, PIZZAS, etc.)</p>
+                </div>
+                <button onClick={handleAddMenuImg} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Category Image
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {homeMenuImages.map((item, idx) => (
+                  <div key={item.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Item #{idx + 1}</span>
+                      <button onClick={() => handleDeleteMenuImg(item.id)} className="text-red-400 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
+                      <img src={getImagePath(item.img)} alt="Category preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={item.img}
+                        onChange={(e) => handleMenuImgChange(item.id, 'img', e.target.value)}
+                        placeholder="Image No"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={item.name || ''}
+                        onChange={(e) => handleMenuImgChange(item.id, 'name', e.target.value)}
+                        placeholder="Display Name (e.g. BURGERS)"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={item.category_id || ''}
+                        onChange={(e) => handleMenuImgChange(item.id, 'category_id', e.target.value)}
+                        placeholder="Category ID (e.g. burgers)"
+                        className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                    </div>
+                    <button onClick={() => handleSaveMenuImg(item)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Category Image
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* HOME VIDEOS SECTION */}
+            <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-orange-400 uppercase">Home Page Videos</h2>
+                  <p className="text-xs text-gray-400">Sirf video ka naam likhein (jaise: a, b, c) — .webm khud add ho jayega.</p>
+                </div>
+                <button onClick={handleAddVideo} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase cursor-pointer">
+                  + Add Video
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {homeVideos.map((vid, idx) => (
+                  <div key={vid.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-black text-orange-400">
+                      <span>Video #{idx + 1}</span>
+                      <button onClick={() => handleDeleteVideo(vid.id)} className="text-red-400 font-bold">Delete</button>
+                    </div>
+                    <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
+                      {getVideoPath(vid.video_url) ? (
+                        <video src={getVideoPath(vid.video_url)} className="w-full h-full object-cover" muted />
+                      ) : (
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">No preview</span>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={vid.video_url}
+                      onChange={(e) => handleVideoChange(vid.id, 'video_url', e.target.value)}
+                      placeholder="Video Name (e.g. a)"
+                      className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                    />
+                    <button onClick={() => handleSaveVideo(vid)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
+                      Save Video
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
