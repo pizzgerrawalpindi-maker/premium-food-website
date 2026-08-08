@@ -16,6 +16,79 @@ const getVideoPath = (vidVal) => {
   return `/videos/${vidVal}.webm`;
 };
 
+// Cloudinary upload function
+async function uploadImageToCloudinary(file) {
+  const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!response.ok) {
+    throw new Error('Image upload failed');
+  }
+
+  const data = await response.json();
+  return data.secure_url;
+}
+
+// Reusable image upload field component
+function ImageUploadField({ currentValue, onUploaded, label = 'Image' }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Image must be under 10MB.');
+      return;
+    }
+
+    setError('');
+    setUploading(true);
+    try {
+      const url = await uploadImageToCloudinary(file);
+      onUploaded(url);
+    } catch (err) {
+      console.error(err);
+      setError('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        {label}
+      </label>
+      <label className="flex items-center justify-center gap-2 w-full p-2.5 rounded-xl bg-gray-800 border border-dashed border-gray-600 text-white text-xs cursor-pointer hover:border-orange-500 transition-all">
+        <span>{uploading ? 'Uploading...' : '📷 Upload New Image'}</span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          disabled={uploading}
+          className="hidden"
+        />
+      </label>
+      {error && <p className="text-[10px] text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 function AdminDashboardContent() {
   const [activeTab, setActiveTab] = useState('menu');
   const [categories, setCategories] = useState([]);
@@ -134,7 +207,7 @@ function AdminDashboardContent() {
         const payload = {
           title: item.title,
           description: item.description,
-          image_num: item.image_num !== '' && item.image_num !== null ? parseInt(item.image_num) : null,
+          image_num: item.image_num !== '' && item.image_num !== null ? String(item.image_num) : null,
           price: item.pricing_options && item.pricing_options.length > 0 ? null : parseFloat(item.price || 0),
           pricing_options: item.pricing_options && item.pricing_options.length > 0 ? item.pricing_options : null,
         };
@@ -251,7 +324,7 @@ function AdminDashboardContent() {
       const payload = {
         title: item.title,
         description: item.description,
-        image_num: item.image_num !== '' && item.image_num !== null ? parseInt(item.image_num) : null,
+        image_num: item.image_num !== '' && item.image_num !== null ? String(item.image_num) : null,
         price: item.pricing_options && item.pricing_options.length > 0 ? null : parseFloat(item.price || 0),
         pricing_options: item.pricing_options && item.pricing_options.length > 0 ? item.pricing_options : null,
       };
@@ -631,6 +704,12 @@ function AdminDashboardContent() {
                                     </div>
                                   </div>
 
+                                  <ImageUploadField
+                                    currentValue={item.image_num}
+                                    onUploaded={(url) => handleItemChange(item.id, 'image_num', url)}
+                                    label="Or Upload New Image"
+                                  />
+
                                   <div>
                                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Description</label>
                                     <textarea
@@ -772,6 +851,11 @@ function AdminDashboardContent() {
                         placeholder="Image No"
                         className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
                       />
+                      <ImageUploadField
+                        currentValue={slider.img}
+                        onUploaded={(url) => handleSliderChange(slider.id, 'img', url)}
+                        label="Or Upload New Image"
+                      />
                       <input
                         type="text"
                         value={slider.link || ''}
@@ -816,6 +900,11 @@ function AdminDashboardContent() {
                         onChange={(e) => handlePromoChange(promo.id, 'img', e.target.value)}
                         placeholder="Image No"
                         className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <ImageUploadField
+                        currentValue={promo.img}
+                        onUploaded={(url) => handlePromoChange(promo.id, 'img', url)}
+                        label="Or Upload New Image"
                       />
                       <input
                         type="text"
@@ -869,6 +958,11 @@ function AdminDashboardContent() {
                         onChange={(e) => handleMenuImgChange(item.id, 'img', e.target.value)}
                         placeholder="Image No"
                         className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                      />
+                      <ImageUploadField
+                        currentValue={item.img}
+                        onUploaded={(url) => handleMenuImgChange(item.id, 'img', url)}
+                        label="Or Upload New Image"
                       />
                       <input
                         type="text"
