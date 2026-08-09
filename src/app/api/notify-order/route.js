@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 
 export async function POST(request) {
   try {
@@ -32,10 +33,10 @@ export async function POST(request) {
       return new Response('Server configuration error: Missing Firebase keys', { status: 500 });
     }
 
-    // 3. Initialize Firebase safely
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
+    // 3. Initialize Firebase safely (modular SDK — avoids bundling issues with default import)
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
           projectId,
           clientEmail,
           privateKey: privateKey.replace(/\\n/g, '\n'),
@@ -67,7 +68,7 @@ export async function POST(request) {
     }
 
     // 6. Send Notification
-    await admin.messaging().send({
+    await getMessaging().send({
       token: tokenRow.fcm_token,
       notification: {
         title: '🍕 New Order Received!',
