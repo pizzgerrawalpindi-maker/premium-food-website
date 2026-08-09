@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-
+const getImageSrc = (imgVal) => { if (!imgVal) return '/images/placeholder.webp'; const val = String(imgVal); if (val.startsWith('/') || val.startsWith('http')) return val; return `/images/${val}.webp`; };
 const MenuCard = memo(function MenuCard({
   title,
   description,
@@ -44,7 +44,7 @@ const MenuCard = memo(function MenuCard({
       } else {
         savedCart.push({
           id: `${title}-${finalSize}`,
-          image: imageNum ? `/images/${imageNum}.webp` : '/images/placeholder.webp',
+          image: getImageSrc(imageNum),
           title,
           size: finalSize,
           price: finalPrice,
@@ -75,7 +75,7 @@ const MenuCard = memo(function MenuCard({
     >
       <div className="w-full h-32 sm:h-48 bg-linear-to-b from-gray-50 to-gray-100/60 dark:from-[#120D0A] dark:to-[#1c1410] rounded-xl sm:rounded-2xl relative overflow-hidden mb-2.5 sm:mb-4 flex items-center justify-center p-2 sm:p-3">
         <Image
-          src={imageNum ? `/images/${imageNum}.webp` : '/images/placeholder.webp'}
+          src={getImageSrc(imageNum)}
           alt={title}
           fill
           sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 20vw"
