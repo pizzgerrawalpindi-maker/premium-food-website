@@ -55,34 +55,66 @@ export async function POST(request) {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 5. Get Token
-    const { data: tokenRow, error } = await supabaseAdmin
+    // 5. Get Tokens — up to 3 registered devices, most recently enabled first
+    const { data: tokenRows, error } = await supabaseAdmin
       .from('admin_tokens')
-      .select('fcm_token')
-      .eq('id', 1)
-      .single();
+      .select('id, fcm_token')
+      .order('updated_at', { ascending: false })
+      .limit(3);
 
-    if (error || !tokenRow?.fcm_token) {
-      console.error('No admin token found in database:', error);
-      return new Response('No admin token saved yet', { status: 200 });
+    if (error || !tokenRows || tokenRows.length === 0) {
+      console.error('No admin tokens found in database:', error);
+      return new Response('No admin tokens saved yet', { status: 200 });
     }
 
-    // 6. Send Notification
-    await getMessaging().send({
-      token: tokenRow.fcm_token,
-      notification: {
-        title: '🍕 New Order Received!',
-        body: `${order.customer_name || 'A customer'} placed an order — Rs. ${order.total_amount || ''}`,
-      },
-      webpush: {
-        fcmOptions: {
-          link: 'https://pizzgerweb.netlify.app/admin',
-        },
-      },
+    // 6. Send Notification to every registered device
+    // NOTE: Using a "data" payload (not "notification") on purpose — when a
+    // "notification" field is present, browsers can auto-display it AND our
+    // own onMessage/onBackgroundMessage handlers display it again, causing
+    // the notification to appear twice. Data-only messages let us control
+    // display in exactly one place.
+    const notificationTitle = '🍕 New Order Received!';
+    const notificationBody = `${order.customer_name || 'A customer'} placed an order — Rs. ${order.total_amount || ''}`;
+
+    const results = await Promise.allSettled(
+      tokenRows.map((row) =>
+        getMessaging().send({
+          token: row.fcm_token,
+          data: {
+            title: notificationTitle,
+            body: notificationBody,
+            link: 'https://pizzgerweb.netlify.app/admin',
+          },
+          webpush: {
+            fcmOptions: {
+              link: 'https://pizzgerweb.netlify.app/admin',
+            },
+          },
+        })
+      )
+    );
+
+    // 7. Log per-device results, and clean up tokens that are no longer valid
+    // (e.g. app uninstalled, browser data cleared, permission revoked)
+    const invalidTokenIds = [];
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled') {
+        console.log(`Notification sent successfully to device ${idx + 1}`);
+      } else {
+        console.error(`Failed to send to device ${idx + 1}:`, result.reason?.message);
+        const errCode = result.reason?.errorInfo?.code || '';
+        if (errCode.includes('registration-token-not-registered') || errCode.includes('invalid-argument')) {
+          invalidTokenIds.push(tokenRows[idx].id);
+        }
+      }
     });
 
-    console.log('Notification sent successfully!');
-    return new Response('Notification sent', { status: 200 });
+    if (invalidTokenIds.length > 0) {
+      await supabaseAdmin.from('admin_tokens').delete().in('id', invalidTokenIds);
+      console.log('Removed invalid/expired tokens:', invalidTokenIds);
+    }
+
+    return new Response('Notifications processed', { status: 200 });
   } catch (err) {
     console.error('Detailed Error sending notification:', err.message, err.stack);
     return new Response('Internal Server Error', { status: 500 });

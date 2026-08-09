@@ -12,12 +12,25 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// NOTE: We now send "data" payloads only (not "notification") from the
+// backend, so this is the ONLY place a background notification gets
+// displayed — this prevents the double-notification bug.
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message: ', payload);
-  const notificationTitle = payload.notification.title;
+
+  const notificationTitle = payload.data?.title || 'New Notification';
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo.webp' // Aap apni app ka logo ya icon path yahan set kar sakte hain
+    body: payload.data?.body || '',
+    icon: '/logo.webp',
+    data: { link: payload.data?.link || '/admin' }
   };
+
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle notification click — open/focus the admin panel
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = event.notification.data?.link || '/admin';
+  event.waitUntil(clients.openWindow(link));
 });

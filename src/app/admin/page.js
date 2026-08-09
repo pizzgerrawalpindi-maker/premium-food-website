@@ -350,21 +350,39 @@ function AdminDashboardContent() {
     }
   };
 
-  // --- NOTIFICATION ENABLING HANDLER (NEW) ---
+  // --- NOTIFICATION ENABLING HANDLER (UPDATED: supports up to 3 devices) ---
   const handleEnableNotifications = async () => {
     setNotificationLoading(true);
     const token = await requestNotificationPermission();
-    
+
     if (token) {
-      // Save token to Supabase database for later use when orders arrive
+      // Save this device's token as its own row (upsert by token itself, so
+      // re-clicking on the same device just refreshes updated_at instead of
+      // creating a duplicate or wiping out other devices' tokens).
       const { error } = await supabase
         .from('admin_tokens')
-        .upsert([{ id: 1, fcm_token: token }], { onConflict: ['id'] });
+        .upsert(
+          [{ fcm_token: token, updated_at: new Date().toISOString() }],
+          { onConflict: 'fcm_token' }
+        );
 
       if (error) {
         console.error('Error saving token to Supabase:', error);
       } else {
         console.log('Token saved successfully in database!');
+
+        // Enforce a max of 3 registered devices — if this push added a 4th,
+        // drop the oldest one so only the 3 most recently enabled remain.
+        const { data: allTokens } = await supabase
+          .from('admin_tokens')
+          .select('id, updated_at')
+          .order('updated_at', { ascending: true });
+
+        if (allTokens && allTokens.length > 3) {
+          const excess = allTokens.slice(0, allTokens.length - 3);
+          const idsToRemove = excess.map((t) => t.id);
+          await supabase.from('admin_tokens').delete().in('id', idsToRemove);
+        }
       }
     }
     setNotificationLoading(false);
