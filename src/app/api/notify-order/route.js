@@ -1,24 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK only once (Next.js can reuse this file across requests)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-// Server-only Supabase client using the service role key — this bypasses
-// RLS safely because this code never runs in the browser.
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export async function POST(request) {
   try {
     // Basic security check — only Supabase's webhook (which knows the secret) can trigger this
@@ -33,6 +15,23 @@ export async function POST(request) {
     if (!order) {
       return new Response('No order data', { status: 400 });
     }
+
+    // Initialize Firebase Admin SDK lazily inside the request function
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
+
+    // Server-only Supabase client initialized at request time
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
     // Get the admin's saved device token
     const { data: tokenRow, error } = await supabaseAdmin
