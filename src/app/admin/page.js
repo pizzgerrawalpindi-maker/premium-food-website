@@ -38,6 +38,28 @@ async function uploadImageToCloudinary(file) {
   return data.secure_url;
 }
 
+// NEW: Cloudinary video upload function
+async function uploadVideoToCloudinary(file) {
+  const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!response.ok) {
+    throw new Error('Video upload failed');
+  }
+
+  const data = await response.json();
+  return data.secure_url;
+}
+
 // Reusable image upload field component
 function ImageUploadField({ currentValue, onUploaded, label = 'Image' }) {
   const [uploading, setUploading] = useState(false);
@@ -79,6 +101,57 @@ function ImageUploadField({ currentValue, onUploaded, label = 'Image' }) {
         <input
           type="file"
           accept="image/*"
+          onChange={handleFileChange}
+          disabled={uploading}
+          className="hidden"
+        />
+      </label>
+      {error && <p className="text-[10px] text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+// NEW: Reusable video upload field component
+function VideoUploadField({ currentValue, onUploaded, label = 'Video' }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      setError('Please select a video file.');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setError('Video must be under 100MB.');
+      return;
+    }
+
+    setError('');
+    setUploading(true);
+    try {
+      const url = await uploadVideoToCloudinary(file);
+      onUploaded(url);
+    } catch (err) {
+      console.error(err);
+      setError('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        {label}
+      </label>
+      <label className="flex items-center justify-center gap-2 w-full p-2.5 rounded-xl bg-gray-800 border border-dashed border-gray-600 text-white text-xs cursor-pointer hover:border-orange-500 transition-all">
+        <span>{uploading ? 'Uploading...' : '🎬 Upload New Video'}</span>
+        <input
+          type="file"
+          accept="video/*"
           onChange={handleFileChange}
           disabled={uploading}
           className="hidden"
@@ -407,6 +480,42 @@ function AdminDashboardContent() {
     if (!error) fetchInitialData();
   };
 
+  // --- NEW: Toggle Hide/Unhide handlers ---
+  const handleToggleCategoryHidden = async (cat) => {
+    const newValue = !cat.is_hidden;
+    await supabase.from('categories').update({ is_hidden: newValue }).eq('id', cat.id);
+    setCategories(categories.map(c => c.id === cat.id ? { ...c, is_hidden: newValue } : c));
+  };
+
+  const handleToggleItemHidden = async (item) => {
+    const newValue = !item.is_hidden;
+    await supabase.from('menu_items').update({ is_hidden: newValue }).eq('id', item.id);
+    setMenuItems(menuItems.map(i => i.id === item.id ? { ...i, is_hidden: newValue } : i));
+  };
+
+  const handleToggleSliderHidden = async (slider) => {
+    const newValue = !slider.is_hidden;
+    await supabase.from('home_sliders').update({ is_hidden: newValue }).eq('id', slider.id);
+    setHomeSliders(homeSliders.map(s => s.id === slider.id ? { ...s, is_hidden: newValue } : s));
+  };
+
+  const handleTogglePromoHidden = async (promo) => {
+    const newValue = !promo.is_hidden;
+    await supabase.from('home_promos').update({ is_hidden: newValue }).eq('id', promo.id);
+    setHomePromos(homePromos.map(p => p.id === promo.id ? { ...p, is_hidden: newValue } : p));
+  };
+
+  const handleToggleMenuImgHidden = async (item) => {
+    const newValue = !item.is_hidden;
+    await supabase.from('home_menu_images').update({ is_hidden: newValue }).eq('id', item.id);
+    setHomeMenuImages(homeMenuImages.map(m => m.id === item.id ? { ...m, is_hidden: newValue } : m));
+  };
+
+  const handleToggleVideoHidden = async (vid) => {
+    const newValue = !vid.is_hidden;
+    await supabase.from('home_videos').update({ is_hidden: newValue }).eq('id', vid.id);
+    setHomeVideos(homeVideos.map(v => v.id === vid.id ? { ...v, is_hidden: newValue } : v));
+  };
 
   // --- HOME PAGE MANAGEMENT HANDLERS ---
   const handleSliderChange = (id, field, value) => {
@@ -584,7 +693,7 @@ function AdminDashboardContent() {
                 const currentCatOrder = cat.display_order || (catIdx * 10);
 
                 return (
-                  <div key={cat.id} className="relative group/cat space-y-6">
+                  <div key={cat.id} className={`relative group/cat space-y-6 ${cat.is_hidden ? 'opacity-50' : ''}`}>
                     <div className="relative flex items-center justify-center my-6">
                       <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700/60"></div></div>
                       <button
@@ -619,6 +728,15 @@ function AdminDashboardContent() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleToggleCategoryHidden(cat)}
+                          className={`px-3 py-2 font-bold text-xs uppercase rounded-xl transition-all cursor-pointer ${
+                            cat.is_hidden ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white' : 'bg-gray-700/40 text-gray-400 hover:bg-gray-700 hover:text-white'
+                          }`}
+                        >
+                          {cat.is_hidden ? '👁️ Unhide' : '🙈 Hide'}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDeleteCategory(cat.id)}
                           className="px-3 py-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white font-bold text-xs uppercase rounded-xl transition-all cursor-pointer"
                         >
@@ -638,7 +756,7 @@ function AdminDashboardContent() {
                           const currentOrder = item.display_order || (index * 10);
 
                           return (
-                            <div key={item.id} className="relative group/card">
+                            <div key={item.id} className={`relative group/card ${item.is_hidden ? 'opacity-50' : ''}`}>
                               <button
                                 type="button"
                                 onClick={() => handleInsertItemBetween(cat.id, currentOrder - 5)}
@@ -660,13 +778,24 @@ function AdminDashboardContent() {
                               <div className="bg-gray-800/95 backdrop-blur-xl p-4 rounded-3xl border border-gray-700/80 shadow-xl flex flex-col justify-between gap-3 h-full">
                                 <div className="flex justify-between items-center border-b border-gray-700/60 pb-2">
                                   <span className="text-[10px] font-black uppercase text-orange-400">Card #{index + 1}</span>
-                                  <button
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    className="text-red-400 hover:text-red-300 p-1 rounded-md hover:bg-red-500/10 transition-all cursor-pointer"
-                                    title="Delete Card"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => handleToggleItemHidden(item)}
+                                      className={`p-1 rounded-md transition-all cursor-pointer ${
+                                        item.is_hidden ? 'text-amber-400 hover:bg-amber-500/10' : 'text-gray-500 hover:bg-gray-500/10'
+                                      }`}
+                                      title={item.is_hidden ? 'Unhide Card' : 'Hide Card'}
+                                    >
+                                      {item.is_hidden ? '👁️' : '🙈'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteItem(item.id)}
+                                      className="text-red-400 hover:text-red-300 p-1 rounded-md hover:bg-red-500/10 transition-all cursor-pointer"
+                                      title="Delete Card"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                  </div>
                                 </div>
 
                                 <div className="space-y-2 grow">
@@ -835,10 +964,18 @@ function AdminDashboardContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {homeSliders.map((slider, idx) => (
-                  <div key={slider.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                  <div key={slider.id} className={`bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3 ${slider.is_hidden ? 'opacity-50' : ''}`}>
                     <div className="flex justify-between items-center text-xs font-black text-orange-400">
                       <span>Slide #{idx + 1}</span>
-                      <button onClick={() => handleDeleteSlider(slider.id)} className="text-red-400 font-bold">Delete</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleSliderHidden(slider)}
+                          className={slider.is_hidden ? 'text-amber-400 font-bold' : 'text-gray-400 font-bold'}
+                        >
+                          {slider.is_hidden ? '👁️ Unhide' : '🙈 Hide'}
+                        </button>
+                        <button onClick={() => handleDeleteSlider(slider.id)} className="text-red-400 font-bold">Delete</button>
+                      </div>
                     </div>
                     <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
                       <img src={getImagePath(slider.img)} alt="Slider preview" className="w-full h-full object-cover" />
@@ -885,10 +1022,18 @@ function AdminDashboardContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {homePromos.map((promo, idx) => (
-                  <div key={promo.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                  <div key={promo.id} className={`bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3 ${promo.is_hidden ? 'opacity-50' : ''}`}>
                     <div className="flex justify-between items-center text-xs font-black text-orange-400">
                       <span>Promo #{idx + 1}</span>
-                      <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 font-bold">Delete</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleTogglePromoHidden(promo)}
+                          className={promo.is_hidden ? 'text-amber-400 font-bold' : 'text-gray-400 font-bold'}
+                        >
+                          {promo.is_hidden ? '👁️ Unhide' : '🙈 Hide'}
+                        </button>
+                        <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 font-bold">Delete</button>
+                      </div>
                     </div>
                     <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
                       <img src={getImagePath(promo.img)} alt="Promo preview" className="w-full h-full object-cover" />
@@ -943,10 +1088,18 @@ function AdminDashboardContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {homeMenuImages.map((item, idx) => (
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                  <div key={item.id} className={`bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3 ${item.is_hidden ? 'opacity-50' : ''}`}>
                     <div className="flex justify-between items-center text-xs font-black text-orange-400">
                       <span>Item #{idx + 1}</span>
-                      <button onClick={() => handleDeleteMenuImg(item.id)} className="text-red-400 font-bold">Delete</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleMenuImgHidden(item)}
+                          className={item.is_hidden ? 'text-amber-400 font-bold' : 'text-gray-400 font-bold'}
+                        >
+                          {item.is_hidden ? '👁️ Unhide' : '🙈 Hide'}
+                        </button>
+                        <button onClick={() => handleDeleteMenuImg(item.id)} className="text-red-400 font-bold">Delete</button>
+                      </div>
                     </div>
                     <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
                       <img src={getImagePath(item.img)} alt="Category preview" className="w-full h-full object-cover" />
@@ -1001,10 +1154,18 @@ function AdminDashboardContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {homeVideos.map((vid, idx) => (
-                  <div key={vid.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3">
+                  <div key={vid.id} className={`bg-gray-900 p-4 rounded-2xl border border-gray-700 space-y-3 ${vid.is_hidden ? 'opacity-50' : ''}`}>
                     <div className="flex justify-between items-center text-xs font-black text-orange-400">
                       <span>Video #{idx + 1}</span>
-                      <button onClick={() => handleDeleteVideo(vid.id)} className="text-red-400 font-bold">Delete</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleVideoHidden(vid)}
+                          className={vid.is_hidden ? 'text-amber-400 font-bold' : 'text-gray-400 font-bold'}
+                        >
+                          {vid.is_hidden ? '👁️ Unhide' : '🙈 Hide'}
+                        </button>
+                        <button onClick={() => handleDeleteVideo(vid.id)} className="text-red-400 font-bold">Delete</button>
+                      </div>
                     </div>
                     <div className="h-28 bg-gray-950 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
                       {getVideoPath(vid.video_url) ? (
@@ -1019,6 +1180,11 @@ function AdminDashboardContent() {
                       onChange={(e) => handleVideoChange(vid.id, 'video_url', e.target.value)}
                       placeholder="Video Name (e.g. a)"
                       className="w-full p-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-xs outline-none"
+                    />
+                    <VideoUploadField
+                      currentValue={vid.video_url}
+                      onUploaded={(url) => handleVideoChange(vid.id, 'video_url', url)}
+                      label="Or Upload New Video"
                     />
                     <button onClick={() => handleSaveVideo(vid)} disabled={loading} className="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold uppercase text-white cursor-pointer">
                       Save Video

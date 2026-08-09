@@ -16,8 +16,8 @@ export const revalidate = 60; // ISR: har 60 second baad background mein fresh d
 
 export default async function MenuPage() {
   const [{ data: catData, error: catError }, { data: itemData, error: itemError }] = await Promise.all([
-    supabase.from('categories').select('*').order('display_order', { ascending: true }),
-    supabase.from('menu_items').select('*').order('display_order', { ascending: true }),
+    supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
+    supabase.from('menu_items').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
   ]);
 
   if (catError) console.error('Error fetching categories:', catError);

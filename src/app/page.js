@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import HomeClientWrapper from './HomeClientWrapper';
 export const dynamic = 'force-dynamic';
 
-// ⚡ Server-Side Data Fetching from Supabase
 async function getHomeData() {
   try {
     const [
@@ -11,10 +10,10 @@ async function getHomeData() {
       { data: menuImagesData },
       { data: videoData }
     ] = await Promise.all([
-      supabase.from('home_sliders').select('*').order('display_order', { ascending: true }),
-      supabase.from('home_promos').select('*').order('display_order', { ascending: true }),
-      supabase.from('home_menu_images').select('*').order('display_order', { ascending: true }),
-      supabase.from('home_videos').select('*').order('display_order', { ascending: true }),
+      supabase.from('home_sliders').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
+      supabase.from('home_promos').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
+      supabase.from('home_menu_images').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
+      supabase.from('home_videos').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
     ]);
 
     return {
