@@ -398,7 +398,7 @@ export default function CartPage() {
             </div>
             <h3 className="text-2xl font-black uppercase text-orange-400 tracking-wide">Congratulations! 🎉</h3>
             <p className="text-sm font-bold text-white leading-relaxed">
-              Mubarak ho, aapne hamari exclusive offer avail kr li ha!
+              Congratulations! You've unlocked a special free offer item for your order exceeding Rs. 1999. This exclusive item has been automatically added to your cart and will be included in your delivery at no extra cost. Enjoy your meal and thank you for choosing us!
             </p>
             <div className="w-32 h-32 mx-auto bg-gray-900 rounded-2xl p-2 border border-orange-500/30 flex items-center justify-center">
               <img src="/images/4.webp" alt="Free Offer Item" className="w-full h-full object-contain" />

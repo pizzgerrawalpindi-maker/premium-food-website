@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { requestNotificationPermission } from '@/lib/firebase'; // NEW: for enabling notifications
 import AdminAuthGate from './AdminAuthGate';
 
 // Helper functions for smart path handling in admin
@@ -183,6 +184,7 @@ function AdminDashboardContent() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false); // NEW: for notification button
 
   // ⚡ Supabase Realtime Listener for New Orders (Silent update without buzzer)
   useEffect(() => {
@@ -337,6 +339,26 @@ function AdminDashboardContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- NOTIFICATION ENABLING HANDLER (NEW) ---
+  const handleEnableNotifications = async () => {
+    setNotificationLoading(true);
+    const token = await requestNotificationPermission();
+    
+    if (token) {
+      // Save token to Supabase database for later use when orders arrive
+      const { error } = await supabase
+        .from('admin_tokens')
+        .upsert([{ id: 1, fcm_token: token }], { onConflict: ['id'] });
+
+      if (error) {
+        console.error('Error saving token to Supabase:', error);
+      } else {
+        console.log('Token saved successfully in database!');
+      }
+    }
+    setNotificationLoading(false);
   };
 
   // --- MENU & CATEGORIES HANDLERS ---
@@ -1198,57 +1220,75 @@ function AdminDashboardContent() {
 
         {/* TAB 3: STORE STATUS & TIMINGS MANAGEMENT */}
         {activeTab === 'settings' && (
-          <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-6">
-            <h2 className="text-xl font-extrabold text-orange-400 uppercase border-b border-gray-700 pb-4">
-              Store Operating Hours & Status Control
-            </h2>
+          <div className="space-y-8">
+            <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-6">
+              <h2 className="text-xl font-extrabold text-orange-400 uppercase border-b border-gray-700 pb-4">
+                Store Operating Hours & Status Control
+              </h2>
 
-            <form onSubmit={handleSaveStoreSettings} className="space-y-6">
-              <div className="bg-gray-900 p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-sm uppercase text-white">Store Status</h3>
-                  <p className="text-xs text-gray-400">If toggled to closed, website will instantly show closed.</p>
+              <form onSubmit={handleSaveStoreSettings} className="space-y-6">
+                <div className="bg-gray-900 p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-sm uppercase text-white">Store Status</h3>
+                    <p className="text-xs text-gray-400">If toggled to closed, website will instantly show closed.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={storeSettings.is_open} 
+                      onChange={(e) => setStoreSettings({ ...storeSettings, is_open: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-7 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={storeSettings.is_open} 
-                    onChange={(e) => setStoreSettings({ ...storeSettings, is_open: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-14 h-7 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
-                </label>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Opening Time</label>
-                  <input 
-                    type="time" 
-                    value={storeSettings.opening_time}
-                    onChange={(e) => setStoreSettings({ ...storeSettings, opening_time: e.target.value })}
-                    className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Opening Time</label>
+                    <input 
+                      type="time" 
+                      value={storeSettings.opening_time}
+                      onChange={(e) => setStoreSettings({ ...storeSettings, opening_time: e.target.value })}
+                      className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Closing Time</label>
+                    <input 
+                      type="time" 
+                      value={storeSettings.closing_time}
+                      onChange={(e) => setStoreSettings({ ...storeSettings, closing_time: e.target.value })}
+                      className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Closing Time</label>
-                  <input 
-                    type="time" 
-                    value={storeSettings.closing_time}
-                    onChange={(e) => setStoreSettings({ ...storeSettings, closing_time: e.target.value })}
-                    className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-bold text-sm outline-none"
-                  />
-                </div>
-              </div>
 
-              <button 
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer"
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer"
+                >
+                  {loading ? 'Saving...' : '💾 Save Store Settings'}
+                </button>
+              </form>
+            </div>
+
+            {/* NEW: Enable Notifications Section */}
+            <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-4">
+              <h3 className="text-lg font-extrabold text-orange-400 uppercase">Enable Notifications</h3>
+              <p className="text-xs text-gray-400">
+                Get real-time alerts on new orders directly on your mobile device. 
+                Click the button below to grant permission and save your device token.
+              </p>
+              <button
+                onClick={handleEnableNotifications}
+                disabled={notificationLoading}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Saving...' : '💾 Save Store Settings'}
+                {notificationLoading ? 'Enabling...' : '🔔 Enable Mobile Notifications'}
               </button>
-            </form>
+            </div>
           </div>
         )}
 
