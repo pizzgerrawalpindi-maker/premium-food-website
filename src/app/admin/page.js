@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { requestNotificationPermission } from '@/lib/firebase'; // NEW: for enabling notifications
+import { requestNotificationPermission, listenForForegroundMessages } from '@/lib/firebase'; // UPDATED: added listenForForegroundMessages
 import AdminAuthGate from './AdminAuthGate';
 
 // Helper functions for smart path handling in admin
@@ -207,6 +207,15 @@ function AdminDashboardContent() {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, []);
+
+  // NEW: Listen for FCM foreground notifications (when this admin tab is open/active).
+  // Without this, notifications only fire via the service worker when the tab is
+  // closed or backgrounded — this covers the "tab is open" case.
+  useEffect(() => {
+    listenForForegroundMessages((payload) => {
+      console.log('New order notification received in foreground:', payload);
+    });
   }, []);
 
   useEffect(() => {

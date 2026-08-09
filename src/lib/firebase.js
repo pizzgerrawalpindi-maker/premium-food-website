@@ -46,4 +46,31 @@ export const requestNotificationPermission = async () => {
   return null;
 };
 
+// NEW: Function to listen for messages while the app tab is OPEN (foreground).
+// Without this, notifications only show up when the tab is closed/minimized,
+// because the background service worker handler doesn't fire for an active tab.
+export const listenForForegroundMessages = (callback) => {
+  if (typeof window === 'undefined' || !messaging) return;
+
+  onMessage(messaging, (payload) => {
+    console.log('Foreground message received:', payload);
+
+    // Show a native browser notification manually, since foreground
+    // messages don't trigger the service worker's background handler.
+    if (Notification.permission === 'granted') {
+      const title = payload.notification?.title || 'New Notification';
+      const options = {
+        body: payload.notification?.body || '',
+        icon: '/logo.webp',
+      };
+      new Notification(title, options);
+    }
+
+    // Optional: also let the caller run custom logic (e.g. play a sound, refresh orders)
+    if (typeof callback === 'function') {
+      callback(payload);
+    }
+  });
+};
+
 export { app, messaging };
