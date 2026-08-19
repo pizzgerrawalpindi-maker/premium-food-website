@@ -316,9 +316,12 @@ export default function CartPage() {
             payment_method: paymentMethod,
             delivery_type: deliveryType,
             scheduled_time: deliveryType === 'Scheduled' ? scheduledDateTime : 'ASAP',
-            items: cartItems,
-            total_amount: total,
-            status: 'Pending'
+            subtotal: subtotal,
+    tax_amount: gstAmount,
+    delivery_charges: deliveryCharges,
+    items: cartItems,
+    total_amount: total,
+    status: 'Pending'
           }
         ]);
 
@@ -341,9 +344,12 @@ export default function CartPage() {
           payment_method: paymentMethod,
           delivery_type: deliveryType,
           scheduled_time: deliveryType === 'Scheduled' ? scheduledDateTime : 'ASAP',
-          items: cartItems,
-          total_amount: total,
-          created_at: new Date().toISOString()
+         subtotal: subtotal,
+    tax_amount: gstAmount,
+    delivery_charges: deliveryCharges,
+    items: cartItems,
+    total_amount: total,
+    created_at: new Date().toISOString()
         };
         localStorage.setItem('last_confirmed_order', JSON.stringify(finalOrderObject));
         

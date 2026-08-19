@@ -1413,6 +1413,28 @@ function AdminDashboardContent() {
                             </div>
                           ))}
                         </div>
+
+                        {/* NEW: Price Breakdown */}
+                        <div className="pt-2 mt-2 border-t border-gray-800 space-y-1 text-[11px]">
+                          {order.subtotal != null && (
+                            <div className="flex justify-between text-gray-300">
+                              <span>Subtotal</span>
+                              <span className="font-bold">Rs. {order.subtotal}</span>
+                            </div>
+                          )}
+                          {order.tax_amount != null && (
+                            <div className="flex justify-between text-gray-300">
+                              <span>GST/Tax</span>
+                              <span className="font-bold">Rs. {order.tax_amount}</span>
+                            </div>
+                          )}
+                          {order.delivery_charges != null && (
+                            <div className="flex justify-between text-gray-300">
+                              <span>Delivery Charges {order.delivery_distance != null && <span className="text-orange-400/70">({order.delivery_distance} km)</span>}</span>
+                              <span className="font-bold">Rs. {order.delivery_charges}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                     </div>
