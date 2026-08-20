@@ -1,5 +1,18 @@
 import { supabase } from '@/lib/supabase';
 import MenuClientWrapper from './MenuClientWrapper';
+export const metadata = {
+  title: 'Menu — Pizzger | Pizzas, Burgers, Shawarmas & More',
+  description: 'Browse the full Pizzger menu — pizzas, burgers, shawarmas, parathas, fries, wings, and exclusive midnight deals. Order online for fast delivery.',
+  openGraph: {
+    title: 'Pizzger Menu — Order Online',
+    description: 'Explore our full menu of pizzas, burgers, shawarmas & more.',
+    url: 'https://pizzgerfoods.pk/menu',
+    siteName: 'Pizzger',
+    images: [{ url: 'https://pizzgerfoods.pk/images/logo.webp', width: 800, height: 800 }],
+    locale: 'en_PK',
+    type: 'website',
+  },
+};
 export const dynamic = 'force-dynamic';
 
 // ⚡ Ye Server Component hai ('use client' NAHI hai yahan) — data yahan

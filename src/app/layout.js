@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import LocationPopup from "./components/LocationPopup";
+import RestaurantSchema from "./components/RestaurantSchema";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,6 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
+  metadataBase: new URL('https://pizzgerfoods.pk'),
   title: "PizzGer - Order Delicious Pizzas, Burgers & Fast Food Online",
   description: "Order fresh pizzas, crispy burgers, shawarmas, and exclusive deals online from PizzGer, Tipu Road Rawalpindi. Fast delivery!",
   icons: {
@@ -29,6 +31,21 @@ export const metadata = {
     },
   },
   manifest: "/site.webmanifest",
+  openGraph: {
+    title: "PizzGer - Order Delicious Pizzas, Burgers & Fast Food Online",
+    description: "Order fresh pizzas, crispy burgers, shawarmas, and exclusive deals online from PizzGer, Tipu Road Rawalpindi. Fast delivery!",
+    url: "https://pizzgerfoods.pk",
+    siteName: "Pizzger",
+    images: [{ url: "/images/logo.webp", width: 800, height: 800 }],
+    locale: "en_PK",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PizzGer - Order Delicious Pizzas, Burgers & Fast Food Online",
+    description: "Order fresh pizzas, crispy burgers, shawarmas, and exclusive deals online from PizzGer, Tipu Road Rawalpindi.",
+    images: ["/images/logo.webp"],
+  },
 };
 
 export const viewport = {
@@ -42,6 +59,7 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-gray-50 flex flex-col min-h-screen`}
       >
+        <RestaurantSchema />
         <LocationPopup />
         <Header />
         <main className="grow">{children}</main>

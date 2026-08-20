@@ -1,7 +1,19 @@
 import { supabase } from '@/lib/supabase';
 import HomeClientWrapper from './HomeClientWrapper';
 export const dynamic = 'force-dynamic';
-
+export const metadata = {
+  title: 'Pizzger — Order Delicious Pizzas, Burgers & Fast Food in Rawalpindi',
+  description: 'Order fresh pizzas, juicy burgers, shawarmas, and more from Pizzger in Rawalpindi. Fast delivery, midnight deals, and exclusive offers. Order online now!',
+  openGraph: {
+    title: 'Pizzger — Daily Dose Of Delicious',
+    description: 'Order fresh pizzas, burgers, shawarmas & more. Fast delivery across Rawalpindi & Islamabad.',
+    url: 'https://pizzgerfoods.pk',
+    siteName: 'Pizzger',
+    images: [{ url: 'https://pizzgerfoods.pk/images/logo.webp', width: 800, height: 800 }],
+    locale: 'en_PK',
+    type: 'website',
+  },
+};
 async function getHomeData() {
   try {
     const [
