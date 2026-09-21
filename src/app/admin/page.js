@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { requestNotificationPermission, listenForForegroundMessages } from '@/lib/firebase'; // UPDATED: added listenForForegroundMessages
+import { requestNotificationPermission, listenForForegroundMessages } from '@/lib/firebase';
 import AdminAuthGate from './AdminAuthGate';
 
 // Helper functions for smart path handling in admin
@@ -39,7 +39,7 @@ async function uploadImageToCloudinary(file) {
   return data.secure_url;
 }
 
-// NEW: Cloudinary video upload function
+// Cloudinary video upload function
 async function uploadVideoToCloudinary(file) {
   const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
@@ -112,7 +112,7 @@ function ImageUploadField({ currentValue, onUploaded, label = 'Image' }) {
   );
 }
 
-// NEW: Reusable video upload field component
+// Reusable video upload field component
 function VideoUploadField({ currentValue, onUploaded, label = 'Video' }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -175,18 +175,20 @@ function AdminDashboardContent() {
   const [homeMenuImages, setHomeMenuImages] = useState([]);
   const [homeVideos, setHomeVideos] = useState([]);
 
-  // Store Settings States (Open/Close & Timings)
+  // Store Settings States (Open/Close & Timings & Announcement Bar)
   const [storeSettings, setStoreSettings] = useState({
     id: null,
     is_open: true,
     opening_time: '15:00',
-    closing_time: '02:00'
+    closing_time: '02:00',
+    announcement_text: '',
+    is_announcement_active: false
   });
 
   const [loading, setLoading] = useState(false);
-  const [notificationLoading, setNotificationLoading] = useState(false); // NEW: for notification button
+  const [notificationLoading, setNotificationLoading] = useState(false);
 
-  // ⚡ Supabase Realtime Listener for New Orders (Silent update without buzzer)
+  // ⚡ Supabase Realtime Listener for New Orders
   useEffect(() => {
     const channel = supabase
       .channel('live-orders-channel')
@@ -209,9 +211,6 @@ function AdminDashboardContent() {
     };
   }, []);
 
-  // NEW: Listen for FCM foreground notifications (when this admin tab is open/active).
-  // Without this, notifications only fire via the service worker when the tab is
-  // closed or backgrounded — this covers the "tab is open" case.
   useEffect(() => {
     listenForForegroundMessages((payload) => {
       console.log('New order notification received in foreground:', payload);
@@ -257,7 +256,9 @@ function AdminDashboardContent() {
           id: settingsData.id,
           is_open: settingsData.is_open ?? true,
           opening_time: settingsData.opening_time || '15:00',
-          closing_time: settingsData.closing_time || '02:00'
+          closing_time: settingsData.closing_time || '02:00',
+          announcement_text: settingsData.announcement_text || '',
+          is_announcement_active: settingsData.is_announcement_active ?? false
         });
       }
     } catch (err) {
@@ -265,16 +266,18 @@ function AdminDashboardContent() {
     }
   }
 
-  // --- MASTER SILENT SAVE ALL FUNCTION (No popups/alerts) ---
+  // --- MASTER SILENT SAVE ALL FUNCTION ---
   const handleSaveAll = async () => {
     setLoading(true);
     try {
-      // 1. Save Store Settings
+      // 1. Save Store Settings & Announcement Bar
       if (storeSettings.id) {
         await supabase.from('settings').update({
           is_open: storeSettings.is_open,
           opening_time: storeSettings.opening_time,
           closing_time: storeSettings.closing_time,
+          announcement_text: storeSettings.announcement_text,
+          is_announcement_active: storeSettings.is_announcement_active
         }).eq('id', storeSettings.id);
       }
 
@@ -326,15 +329,17 @@ function AdminDashboardContent() {
     }
   };
 
-  // --- STORE SETTINGS HANDLER ---
+  // --- STORE SETTINGS & ANNOUNCEMENT HANDLER ---
   const handleSaveStoreSettings = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setLoading(true);
     try {
       const payload = {
         is_open: storeSettings.is_open,
         opening_time: storeSettings.opening_time,
         closing_time: storeSettings.closing_time,
+        announcement_text: storeSettings.announcement_text,
+        is_announcement_active: storeSettings.is_announcement_active
       };
 
       if (storeSettings.id) {
@@ -350,15 +355,12 @@ function AdminDashboardContent() {
     }
   };
 
-  // --- NOTIFICATION ENABLING HANDLER (UPDATED: supports up to 3 devices) ---
+  // --- NOTIFICATION ENABLING HANDLER ---
   const handleEnableNotifications = async () => {
     setNotificationLoading(true);
     const token = await requestNotificationPermission();
 
     if (token) {
-      // Save this device's token as its own row (upsert by token itself, so
-      // re-clicking on the same device just refreshes updated_at instead of
-      // creating a duplicate or wiping out other devices' tokens).
       const { error } = await supabase
         .from('admin_tokens')
         .upsert(
@@ -371,8 +373,6 @@ function AdminDashboardContent() {
       } else {
         console.log('Token saved successfully in database!');
 
-        // Enforce a max of 3 registered devices — if this push added a 4th,
-        // drop the oldest one so only the 3 most recently enabled remain.
         const { data: allTokens } = await supabase
           .from('admin_tokens')
           .select('id, updated_at')
@@ -529,7 +529,7 @@ function AdminDashboardContent() {
     if (!error) fetchInitialData();
   };
 
-  // --- NEW: Toggle Hide/Unhide handlers ---
+  // Toggle Hide/Unhide handlers
   const handleToggleCategoryHidden = async (cat) => {
     const newValue = !cat.is_hidden;
     await supabase.from('categories').update({ is_hidden: newValue }).eq('id', cat.id);
@@ -566,7 +566,7 @@ function AdminDashboardContent() {
     setHomeVideos(homeVideos.map(v => v.id === vid.id ? { ...v, is_hidden: newValue } : v));
   };
 
-  // --- HOME PAGE MANAGEMENT HANDLERS ---
+  // HOME PAGE MANAGEMENT HANDLERS
   const handleSliderChange = (id, field, value) => {
     setHomeSliders(homeSliders.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
@@ -639,7 +639,7 @@ function AdminDashboardContent() {
     if (!error) fetchInitialData();
   };
 
-  // --- ORDERS HANDLERS ---
+  // ORDERS HANDLERS
   const handleToggleOrderStatus = async (id, currentStatus) => {
     const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
     const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', id);
@@ -655,9 +655,8 @@ function AdminDashboardContent() {
     }
   };
 
-  // --- WhatsApp Share to Rider Handler ---
+  // WhatsApp Share to Rider Handler
   const handleShareToRider = (order) => {
-    // Agar GPS coordinates mojood hain toh exact lat/lng use honge, warna manual address ki bajaye sirf City use hoga taake map kharab na ho
     const mapsLink = (order.latitude && order.longitude)
       ? `https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.city || 'Rawalpindi')}`;
@@ -710,7 +709,7 @@ function AdminDashboardContent() {
                 activeTab === 'settings' ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              Store Status & Timing
+              WEBSITE FEATURES
             </button>
             <button
               onClick={() => setActiveTab('orders')}
@@ -1057,6 +1056,7 @@ function AdminDashboardContent() {
                 ))}
               </div>
             </div>
+
             {/* PROMOS SECTION */}
             <div className="bg-gray-800/60 p-6 rounded-3xl border border-gray-700/60 space-y-6">
               <div className="flex justify-between items-center border-b border-gray-700 pb-4">
@@ -1245,9 +1245,10 @@ function AdminDashboardContent() {
           </div>
         )}
 
-        {/* TAB 3: STORE STATUS & TIMINGS MANAGEMENT */}
+        {/* TAB 3: STORE STATUS, TIMINGS & ANNOUNCEMENT BAR MANAGEMENT */}
         {activeTab === 'settings' && (
           <div className="space-y-8">
+            {/* Store Hours & Status Card */}
             <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-6">
               <h2 className="text-xl font-extrabold text-orange-400 uppercase border-b border-gray-700 pb-4">
                 Store Operating Hours & Status Control
@@ -1301,7 +1302,52 @@ function AdminDashboardContent() {
               </form>
             </div>
 
-            {/* NEW: Enable Notifications Section */}
+            {/* NEW: Announcement Bar Settings Card */}
+            <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-6">
+              <h3 className="text-lg font-extrabold text-orange-400 uppercase border-b border-gray-700 pb-4">
+                📢 Website Announcement Bar Control
+              </h3>
+              
+              <div className="bg-gray-900 p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm uppercase text-white">Enable Announcement Bar</h4>
+                  <p className="text-xs text-gray-400">Website ke top banner bar ko show/hide karne ke liye toggle karein.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={storeSettings.is_announcement_active} 
+                    onChange={(e) => setStoreSettings({ ...storeSettings, is_announcement_active: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-14 h-7 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+                  Announcement Message
+                </label>
+                <textarea
+                  rows="3"
+                  value={storeSettings.announcement_text}
+                  onChange={(e) => setStoreSettings({ ...storeSettings, announcement_text: e.target.value })}
+                  placeholder="e.g. 🎉 Special Offer! Get 20% OFF on all deals tonight. Use code: SPECIAL20"
+                  className="w-full p-3.5 rounded-2xl bg-gray-900 border border-gray-700 text-white font-medium text-sm outline-none focus:border-orange-500 resize-none"
+                ></textarea>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveStoreSettings}
+                disabled={loading}
+                className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : '💾 Save Announcement Settings'}
+              </button>
+            </div>
+
+            {/* Enable Notifications Section */}
             <div className="bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-gray-700/60 shadow-xl max-w-2xl mx-auto space-y-4">
               <h3 className="text-lg font-extrabold text-orange-400 uppercase">Enable Notifications</h3>
               <p className="text-xs text-gray-400">
@@ -1311,7 +1357,7 @@ function AdminDashboardContent() {
               <button
                 onClick={handleEnableNotifications}
                 disabled={notificationLoading}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {notificationLoading ? 'Enabling...' : '🔔 Enable Mobile Notifications'}
               </button>
@@ -1390,7 +1436,6 @@ function AdminDashboardContent() {
                           )}
                         </div>
 
-                        {/* Share to Rider Button */}
                         <button
                           onClick={() => handleShareToRider(order)}
                           className="mt-3 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[11px] tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -1414,7 +1459,7 @@ function AdminDashboardContent() {
                           ))}
                         </div>
 
-                        {/* NEW: Price Breakdown */}
+                        {/* Price Breakdown */}
                         <div className="pt-2 mt-2 border-t border-gray-800 space-y-1 text-[11px]">
                           {order.subtotal != null && (
                             <div className="flex justify-between text-gray-300">
@@ -1470,7 +1515,7 @@ function AdminDashboardContent() {
         )}
       </div>
 
-      {/* Floating Action Buttons (Bottom Right) - Silent Save & Reload */}
+      {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
         <button
           onClick={handleSaveAll}

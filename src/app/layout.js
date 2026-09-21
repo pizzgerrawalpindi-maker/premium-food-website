@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import LocationPopup from "./components/LocationPopup";
 import RestaurantSchema from "./components/RestaurantSchema";
+import AnnouncementBar from "./components/AnnouncementBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -93,7 +94,13 @@ export default function RootLayout({ children }) {
       >
         <RestaurantSchema />
         <LocationPopup />
-        <Header />
+
+        {/* Dynamic Sticky Wrapper: AnnouncementBar aur Header ek sath top par rahenge */}
+        <div className="sticky top-0 z-50 w-full flex flex-col items-center">
+          <AnnouncementBar />
+          <Header />
+        </div>
+
         <main className="grow">{children}</main>
         <Footer />
       </body>
