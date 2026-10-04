@@ -2,6 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import HomeClientWrapper from './HomeClientWrapper';
 import { withStableSlugs } from '@/lib/menuSlug';
+import { isVisibleNow } from '@/lib/visibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,7 @@ async function getHomeData() {
       { data: promoData },
       { data: videoData },
       { data: categoryData },
+      { data: settingsData },
       offerRes,
     ] = await Promise.all([
       supabase.from('home_sliders').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
@@ -33,14 +35,25 @@ async function getHomeData() {
       supabase.from('home_videos').select('*').eq('is_hidden', false).order('display_order', { ascending: true }),
       supabase
         .from('categories')
-        .select('id, slug, name, home_image, show_on_home, display_order')
-        .eq('is_hidden', false)
+        .select('*')
         .order('display_order', { ascending: true }),
+      supabase
+        .from('settings')
+        .select('opening_time, closing_time')
+        .limit(1)
+        .maybeSingle(),
       supabase.from('home_offer').select('*').eq('id', 1).maybeSingle(),
     ]);
 
-    // ✅ Stabilised categories — SAME final slugs the menu page uses.
-    const cats = withStableSlugs(categoryData || []);
+    const settings = settingsData || null;
+    const now = new Date();
+
+    // ✅ Slugs first on the FULL ordered list — so a temporarily hidden
+    // category does not shift the slugs of the other categories.
+    const allCats = withStableSlugs(categoryData || []);
+
+    // Then filter by the smart visibility rule (manual hide / schedule / date range).
+    const cats = allCats.filter((c) => isVisibleNow(c, settings, now));
     const slugSet = new Set(cats.map((c) => c.slug).filter(Boolean));
 
     // Home tiles come straight from the categories table — no more guessing.

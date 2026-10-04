@@ -4,7 +4,10 @@ import { supabase } from '@/lib/supabase';
 import { requestNotificationPermission, listenForForegroundMessages } from '@/lib/firebase';
 import AdminAuthGate from './AdminAuthGate';
 import OfferManager from './OfferManager';
+import HideOptionsModal from './HideOptionsModal';
+import HiddenItemsTab from './HiddenItemsTab';
 import { slugify, makeUniqueSlug } from '@/lib/menuSlug';
+import { getVisibilityInfo, hasSchedule } from '@/lib/visibility';
 
 /* ============================================================
    ICONS
@@ -59,8 +62,6 @@ const getVideoPath = (vidVal) => {
 
 /* ============================================================
    LINK SELECT VALUE
-   Given a stored link string + categories, decide what the
-   "Link to menu section" dropdown should show as selected.
    ============================================================ */
 const getLinkSelectValue = (link, categories = []) => {
   const v = (link || '').trim();
@@ -194,6 +195,7 @@ function IconBtn({ icon, onClick, title, tone = 'neutral', size = 'md' }) {
     neutral: 'text-slate-400 hover:text-white hover:bg-slate-700/60',
     warn: 'text-amber-400 hover:bg-amber-500/15',
     danger: 'text-rose-400 hover:bg-rose-500/15',
+    sky: 'text-sky-400 hover:bg-sky-500/15',
   };
   const sizes = { sm: 'w-7 h-7', md: 'w-8 h-8' };
   return (
@@ -272,7 +274,7 @@ function LinkPicker({ label = 'Link to menu section', value, categories = [], on
           value={selectVal}
           onChange={(e) => {
             const v = e.target.value;
-            if (v === '__custom') return; // don't overwrite, let manual field handle it
+            if (v === '__custom') return;
             onChange(v);
           }}
           className="w-full px-3 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-white text-sm font-bold outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/20 cursor-pointer transition-all"
@@ -391,6 +393,22 @@ function AdminDashboardContent() {
   const [confirm, setConfirm] = useState(null);
   const [orderFilter, setOrderFilter] = useState('all');
   const [orderSearch, setOrderSearch] = useState('');
+
+  /* ---------- Smart hide state ---------- */
+  const [hideModal, setHideModal] = useState(null); // { kind, row, mode: 'hide' | 'schedule' } or null
+  const [nowTick, setNowTick] = useState(null);
+
+  useEffect(() => {
+    setNowTick(Date.now());
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const nowDate = useMemo(() => (nowTick ? new Date(nowTick) : new Date()), [nowTick]);
+  const visSettings = useMemo(
+    () => ({ opening_time: storeSettings.opening_time, closing_time: storeSettings.closing_time }),
+    [storeSettings.opening_time, storeSettings.closing_time]
+  );
 
   /* ---------- Toast ---------- */
   const toast = useCallback((type, title, message) => {
@@ -642,7 +660,6 @@ function AdminDashboardContent() {
     }
   };
 
-  /* Saves name (as typed) + unique slug + home_image + show_on_home. */
   const handleSaveCategory = async (cat) => {
     setLoading(true);
     try {
@@ -731,17 +748,50 @@ function AdminDashboardContent() {
     fetchInitialData();
   };
 
-  /* ---------- Toggle hidden ---------- */
+  /* ---------- Toggle hidden (simple tables: sliders / promos / videos) ---------- */
   const makeToggle = (table, setState) => async (row) => {
     const newValue = !row.is_hidden;
     await supabase.from(table).update({ is_hidden: newValue }).eq('id', row.id);
     setState((prev) => prev.map((r) => (r.id === row.id ? { ...r, is_hidden: newValue } : r)));
   };
-  const handleToggleCategoryHidden = makeToggle('categories', setCategories);
-  const handleToggleItemHidden = makeToggle('menu_items', setMenuItems);
   const handleToggleSliderHidden = makeToggle('home_sliders', setHomeSliders);
   const handleTogglePromoHidden = makeToggle('home_promos', setHomePromos);
   const handleToggleVideoHidden = makeToggle('home_videos', setHomeVideos);
+
+  /* ---------- Smart visibility (categories + items) ---------- */
+  const getTable = (kind) => (kind === 'category' ? 'categories' : 'menu_items');
+  const setterFor = (kind) => (kind === 'category' ? setCategories : setMenuItems);
+
+  const UNHIDE_PAYLOAD = {
+    is_hidden: false, hide_mode: null, hidden_at: null,
+    hidden_until: null, hide_reason: null,
+  };
+  const CLEAR_SCHEDULE_PAYLOAD = {
+    schedule_enabled: false, schedule_type: null, schedule_start: null,
+    schedule_end: null, schedule_days: null, available_from: null, available_until: null,
+  };
+
+  const saveVisibility = async (kind, row, payload, successMsg) => {
+    const { error } = await supabase.from(getTable(kind)).update(payload).eq('id', row.id);
+    if (error) {
+      console.error(error);
+      toast('error', 'Could not save', error.message);
+      return false;
+    }
+    setterFor(kind)((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...payload } : r)));
+    toast('success', successMsg || 'Saved');
+    return true;
+  };
+
+  const requestHideToggle = (kind, row) => {
+    const info = getVisibilityInfo(row, visSettings, new Date());
+    if (info.manualHidden) {
+      saveVisibility(kind, row, UNHIDE_PAYLOAD, 'Now visible');
+      return;
+    }
+    setHideModal({ kind, row, mode: 'hide' });
+  };
+  const requestSchedule = (kind, row) => setHideModal({ kind, row, mode: 'schedule' });
 
   const handleToggleShowOnHome = async (cat) => {
     const newValue = cat.show_on_home === false;
@@ -848,11 +898,19 @@ function AdminDashboardContent() {
     return list;
   }, [orders, orderFilter, orderSearch]);
 
+  const hiddenNowCount = useMemo(() => {
+    let n = 0;
+    (categories || []).forEach((c) => { if (getVisibilityInfo(c, visSettings, nowDate).hiddenNow) n++; });
+    (menuItems || []).forEach((i) => { if (getVisibilityInfo(i, visSettings, nowDate).hiddenNow) n++; });
+    return n;
+  }, [categories, menuItems, visSettings, nowDate]);
+
   const tabs = [
     { id: 'menu', label: 'Menu', icon: icons.menu },
     { id: 'home', label: 'Home Page', icon: icons.home },
     { id: 'settings', label: 'Settings', icon: icons.settings },
     { id: 'orders', label: 'Live Orders', icon: icons.orders, badge: pendingCount },
+    { id: 'hidden', label: 'Hidden Items', icon: icons.eyeOff, badge: hiddenNowCount },
   ];
 
   return (
@@ -872,6 +930,24 @@ function AdminDashboardContent() {
         onConfirm={confirm?.onConfirm}
         onCancel={() => setConfirm(null)}
         danger={confirm?.danger !== false}
+      />
+
+      <HideOptionsModal
+        open={!!hideModal}
+        kind={hideModal?.kind}
+        row={hideModal?.row}
+        itemCount={hideModal?.kind === 'category' ? menuItems.filter((i) => i.category_id === hideModal.row.id).length : 0}
+        settings={visSettings}
+        initialMode={hideModal?.mode || 'hide'}
+        onClose={() => setHideModal(null)}
+        onApply={async (payload) => {
+          const ok = await saveVisibility(hideModal.kind, hideModal.row, payload, payload.is_hidden ? 'Hidden' : 'Schedule saved');
+          if (ok) setHideModal(null);
+        }}
+        onClearSchedule={async () => {
+          const ok = await saveVisibility(hideModal.kind, hideModal.row, CLEAR_SCHEDULE_PAYLOAD, 'Schedule removed');
+          if (ok) setHideModal(null);
+        }}
       />
 
       <header className="sticky top-0 z-[100] bg-[#08090d]/90 backdrop-blur-2xl border-b border-slate-800/60 shadow-lg shadow-black/30">
@@ -959,8 +1035,9 @@ function AdminDashboardContent() {
                 cat.name,
                 categories.filter((c) => c.id !== cat.id).map((c) => c.slug || '')
               );
+              const catInfo = getVisibilityInfo(cat, visSettings, nowDate);
               return (
-                <div key={cat.id} className={`space-y-5 transition-opacity ${cat.is_hidden ? 'opacity-50' : ''}`}>
+                <div key={cat.id} className={`space-y-5 transition-opacity ${catInfo.hiddenNow ? 'opacity-50' : ''}`}>
                   <div className="relative flex items-center justify-center my-4">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800/70" /></div>
                     <button
@@ -991,15 +1068,33 @@ function AdminDashboardContent() {
                           <Icon path={icons.save} className="w-3.5 h-3.5" />
                           Save
                         </Btn>
-                        <Btn variant={cat.is_hidden ? 'ghost' : 'subtle'} size="sm" onClick={() => handleToggleCategoryHidden(cat)}>
-                          <Icon path={cat.is_hidden ? icons.eye : icons.eyeOff} className="w-3.5 h-3.5" />
-                          {cat.is_hidden ? 'Unhide' : 'Hide'}
+                        <Btn variant={catInfo.manualHidden ? 'ghost' : 'subtle'} size="sm" onClick={() => requestHideToggle('category', cat)}>
+                          <Icon path={catInfo.manualHidden ? icons.eye : icons.eyeOff} className="w-3.5 h-3.5" />
+                          {catInfo.manualHidden ? 'Unhide' : 'Hide'}
+                        </Btn>
+                        <Btn variant="subtle" size="sm" onClick={() => requestSchedule('category', cat)} title="Schedule">
+                          <Icon path={icons.clock} className="w-3.5 h-3.5" />
                         </Btn>
                         <Btn variant="danger" size="sm" onClick={() => handleDeleteCategory(cat.id)}>
                           <Icon path={icons.trash} className="w-3.5 h-3.5" />
                         </Btn>
                       </div>
                     </div>
+
+                    {catInfo.short && (
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                          catInfo.hiddenNow
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+                            : 'bg-sky-500/15 text-sky-300 border-sky-500/25'
+                        }`}>
+                          {catInfo.short}
+                        </span>
+                        {catInfo.lines[0] && (
+                          <span className="text-[10px] text-slate-500">{catInfo.lines[0]}</span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mt-4 pt-4 border-t border-slate-800/70 flex flex-col sm:flex-row items-start gap-4">
                       <div className="shrink-0">
@@ -1056,8 +1151,9 @@ function AdminDashboardContent() {
                       {categoryItems.map((item, index) => {
                         const isSizeWise = item.pricing_options && item.pricing_options.length > 0;
                         const currentOrder = item.display_order || index * 10;
+                        const itemInfo = getVisibilityInfo(item, visSettings, nowDate);
                         return (
-                          <div key={item.id} className={`relative group/card ${item.is_hidden ? 'opacity-50' : ''}`}>
+                          <div key={item.id} className={`relative group/card ${itemInfo.hiddenNow ? 'opacity-50' : ''}`}>
                             <button
                               type="button"
                               onClick={() => handleInsertItemBetween(cat.id, currentOrder - 5)}
@@ -1076,12 +1172,24 @@ function AdminDashboardContent() {
                             </button>
 
                             <div className="h-full bg-slate-900/70 backdrop-blur-xl rounded-3xl border border-slate-800/80 p-4 flex flex-col gap-3 transition-all hover:border-orange-500/30 hover:shadow-2xl hover:shadow-orange-950/20">
-                              <div className="flex items-center justify-between border-b border-slate-800/70 pb-2.5">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
-                                  Card #{index + 1}
-                                </span>
-                                <div className="flex items-center gap-0.5">
-                                  <IconBtn icon={item.is_hidden ? icons.eye : icons.eyeOff} onClick={() => handleToggleItemHidden(item)} title={item.is_hidden ? 'Unhide' : 'Hide'} tone={item.is_hidden ? 'warn' : 'neutral'} size="sm" />
+                              <div className="flex items-center justify-between border-b border-slate-800/70 pb-2.5 gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 shrink-0">
+                                    Card #{index + 1}
+                                  </span>
+                                  {itemInfo.short && (
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border shrink-0 ${
+                                      itemInfo.hiddenNow
+                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+                                        : 'bg-sky-500/15 text-sky-300 border-sky-500/25'
+                                    }`}>
+                                      {itemInfo.short}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  <IconBtn icon={itemInfo.manualHidden ? icons.eye : icons.eyeOff} onClick={() => requestHideToggle('item', item)} title={itemInfo.manualHidden ? 'Unhide' : 'Hide'} tone={itemInfo.manualHidden ? 'warn' : 'neutral'} size="sm" />
+                                  <IconBtn icon={icons.clock} onClick={() => requestSchedule('item', item)} title="Schedule" tone="sky" size="sm" />
                                   <IconBtn icon={icons.trash} onClick={() => handleDeleteItem(item.id)} title="Delete" tone="danger" size="sm" />
                                 </div>
                               </div>
@@ -1172,7 +1280,6 @@ function AdminDashboardContent() {
         {/* ================= TAB: HOME ================= */}
         {activeTab === 'home' && (
           <div className="space-y-8">
-            {/* Sliders */}
             <Panel>
               <SectionHeader
                 icon={icons.image}
@@ -1211,7 +1318,6 @@ function AdminDashboardContent() {
               )}
             </Panel>
 
-            {/* Promos */}
             <Panel>
               <SectionHeader
                 icon={icons.sparkles}
@@ -1251,7 +1357,6 @@ function AdminDashboardContent() {
               )}
             </Panel>
 
-            {/* Home Category Tiles */}
             <Panel>
               <SectionHeader
                 icon={icons.image}
@@ -1307,10 +1412,8 @@ function AdminDashboardContent() {
               </p>
             </Panel>
 
-            {/* Offer Manager */}
             <OfferManager categories={categories} ImageUploadField={ImageUploadField} />
 
-            {/* Videos */}
             <Panel>
               <SectionHeader
                 icon={icons.video}
@@ -1480,6 +1583,19 @@ function AdminDashboardContent() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ================= TAB: HIDDEN ITEMS ================= */}
+        {activeTab === 'hidden' && (
+          <HiddenItemsTab
+            categories={categories}
+            menuItems={menuItems}
+            settings={visSettings}
+            now={nowDate}
+            onUnhide={(kind, row) => saveVisibility(kind, row, UNHIDE_PAYLOAD, 'Now visible')}
+            onEdit={(kind, row) => setHideModal({ kind, row, mode: 'schedule' })}
+            onClearSchedule={(kind, row) => saveVisibility(kind, row, CLEAR_SCHEDULE_PAYLOAD, 'Schedule removed')}
+          />
         )}
       </main>
     </div>

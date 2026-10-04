@@ -2,6 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import MenuClientWrapper from './MenuClientWrapper';
 import { withStableSlugs } from '@/lib/menuSlug';
+import { isVisibleNow } from '@/lib/visibility';
 
 export const metadata = {
   title: 'Menu — Pizzger | Pizzas, Burgers, Shawarmas & More',
@@ -31,25 +32,36 @@ export default async function MenuPage() {
   const [
     { data: catData, error: catError },
     { data: itemData, error: itemError },
+    { data: settingsData },
   ] = await Promise.all([
     supabase
       .from('categories')
       .select('*')
-      .eq('is_hidden', false)
       .order('display_order', { ascending: true }),
     supabase
       .from('menu_items')
       .select('*')
-      .eq('is_hidden', false)
       .order('display_order', { ascending: true }),
+    supabase
+      .from('settings')
+      .select('opening_time, closing_time')
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (catError) console.error('Error fetching categories:', catError);
   if (itemError) console.error('Error fetching menu items:', itemError);
 
-  // ✅ Final, unique, stable slugs — SAME slugs the home page uses.
-  const categories = withStableSlugs(catData || []);
-  const menuItems = itemData || [];
+  const settings = settingsData || null;
+  const now = new Date();
+
+  // ✅ Slugs first on the FULL ordered list — so a temporarily hidden
+  // category does not shift the slugs of the other categories.
+  const allCats = withStableSlugs(catData || []);
+
+  // Then filter by the smart visibility rule (manual hide / schedule / date range).
+  const categories = allCats.filter((c) => isVisibleNow(c, settings, now));
+  const menuItems = (itemData || []).filter((i) => isVisibleNow(i, settings, now));
 
   // Grouping bhi ab yahan, server par, ek hi baar hoti hai —
   // client ko koi extra kaam nahi karna parta
