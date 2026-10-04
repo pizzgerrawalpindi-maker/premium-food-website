@@ -1,310 +1,442 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Bricolage_Grotesque } from 'next/font/google';
 import { FaFacebookF, FaInstagram, FaTiktok } from 'react-icons/fa';
 import { SiSnapchat } from 'react-icons/si';
+import { menuHref, rememberMenuTarget } from '@/lib/menuSlug';
 
-// ⚡ Helper functions to auto-format paths so owner only types names/numbers
-const getImagePath = (imgVal) => {
-  if (!imgVal) return '/images/placeholder.webp';
-  if (imgVal.startsWith('/') || imgVal.startsWith('http')) return imgVal;
-  return `/images/${imgVal}.webp`;
+const display = Bricolage_Grotesque({ subsets: ['latin'], display: 'swap' });
+
+/* ---------- config ---------- */
+const DEALS_SLUG = 'exclusive-deals';
+
+const DEFAULT_OFFER = {
+  is_active: true,
+  badge: 'Limited-time offer',
+  title: 'Jumbo deal.',
+  highlight: 'Order now!',
+  description: 'Order any favourite meal worth Rs. 1999 and get our crispy hot wings free.',
+  img: '4',
+  link: null,
+  button_text: 'Claim this offer',
+  price: null,
+  old_price: null,
+  ends_at: null,
 };
 
-const getVideoPath = (vidVal) => {
-  if (!vidVal) return '';
-  if (vidVal.startsWith('/') || vidVal.startsWith('http')) return vidVal;
-  return `/videos/${vidVal}.webm`;
+/* ---------- helpers ---------- */
+const getImagePath = (v) => {
+  if (!v) return '/images/placeholder.webp';
+  const s = String(v);
+  return s.startsWith('/') || s.startsWith('http') ? s : `/images/${s}.webp`;
+};
+const getVideoPath = (v) => {
+  if (!v) return '';
+  const s = String(v);
+  return s.startsWith('/') || s.startsWith('http') ? s : `/videos/${s}.webm`;
+};
+const fmt = (n) => `Rs. ${Number(n).toLocaleString('en-PK')}`;
+
+const onMenuLinkClick = (href) => () => {
+  const m = /^\/menu#(.+)$/.exec(href || '');
+  if (m) rememberMenuTarget(decodeURIComponent(m[1]));
 };
 
-export default function HomeClientWrapper({ initialData }) {
-  const sliderData = initialData.slider || [];
-  const promos = initialData.promos || [];
-  const menuImages = initialData.menuImages || [];
-  const videos = initialData.videos || [];
+const Pic = ({ src, alt, priority = false, sizes = '(max-width: 768px) 90vw, 33vw', className = '', fit = 'object-fill' }) => {
+  const path = getImagePath(src);
+  return (
+    <Image src={path} alt={alt} fill sizes={sizes} priority={priority} unoptimized={path.startsWith('http')}
+      className={`${fit} ${className}`} />
+  );
+};
 
-  const [currentSlide, setCurrentSlide] = useState(0);
+const SOCIALS = [
+  { name: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61583111042280#', Icon: FaFacebookF, color: 'text-[#1877F2]' },
+  { name: 'Instagram', href: 'https://www.instagram.com/pizzgerrwp/', Icon: FaInstagram, color: 'text-[#E4405F]' },
+  { name: 'Snapchat', href: 'https://www.snapchat.com/@pizzgerrwp', Icon: SiSnapchat, color: 'text-[#FFFC00]',
+    style: { filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)' } },
+  { name: 'TikTok', href: 'https://www.tiktok.com/@pizzger.rwp', Icon: FaTiktok, color: 'text-black' },
+];
 
-  // Newsletter State
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterMsg, setNewsletterMsg] = useState('');
-  const [newsletterSuccess, setNewsletterSuccess] = useState(false);
+/* ---------- hero slider ---------- */
+function HeroSlider({ slides }) {
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  const touchX = useRef(null);
+  const n = slides.length;
+  const go = useCallback((k) => setI(((k % n) + n) % n), [n]);
+
+  useEffect(() => { setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches); }, []);
+  useEffect(() => {
+    if (n <= 1 || paused || reduced) return;
+    const id = setInterval(() => !document.hidden && setI((p) => (p + 1) % n), 5000);
+    return () => clearInterval(id);
+  }, [n, paused, reduced]);
+
+  if (n === 0) return null;
+  return (
+    <div
+      role="region" aria-roledescription="carousel" aria-label="Featured offers"
+      className="nb relative aspect-[2.1/1] md:aspect-[2.7/1] rounded-3xl overflow-hidden bg-neutral-900"
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
+      onPointerLeave={() => setPaused(false)}
+      onTouchStart={(e) => { touchX.current = e.touches[0].clientX; setPaused(true); }}
+      onTouchEnd={(e) => {
+        const dx = e.changedTouches[0].clientX - (touchX.current ?? 0);
+        if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1));
+        touchX.current = null; setPaused(false);
+      }}
+    >
+      {slides.map((item, idx) => (
+        <Link key={idx} href={item.link || '/menu'} onClick={onMenuLinkClick(item.link || '/menu')}
+          aria-hidden={idx !== i} tabIndex={idx === i ? 0 : -1}
+          aria-label={`Offer ${idx + 1} of ${n}`}
+          className={`absolute inset-0 transition-opacity duration-700 ${idx === i ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'}`}>
+          <Pic src={item.img} alt={`Offer ${idx + 1}`} priority={idx === 0} sizes="(max-width: 1360px) 100vw, 1360px" fit="object-fill" />
+        </Link>
+      ))}
+      {n > 1 && (
+        <div className="absolute bottom-2 sm:bottom-3 inset-x-0 z-20 flex justify-center gap-1">
+          {slides.map((_, idx) => (
+            <button key={idx} type="button" onClick={() => go(idx)} aria-label={`Go to offer ${idx + 1}`} aria-current={idx === i}
+              className="h-6 px-1 grid place-items-center">
+              <span className={`block h-2 rounded-full border border-black/60 transition-all duration-300 ${idx === i ? 'w-7 bg-[#FFC21A]' : 'w-2 bg-white/80'}`} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- limited-time offer ---------- */
+function Countdown({ endsAt, now }) {
+  const left = Math.max(0, endsAt - now);
+  const parts = [
+    ['days', Math.floor(left / 86400000)],
+    ['hrs', Math.floor(left / 3600000) % 24],
+    ['min', Math.floor(left / 60000) % 60],
+    ['sec', Math.floor(left / 1000) % 60],
+  ];
+  return (
+    <div className="flex items-center gap-2" role="timer" aria-label="Time left on this offer">
+      {parts.map(([label, v]) => (
+        <div key={label} className="min-w-14 rounded-xl bg-[#1a1210] text-[#FFC21A] text-center py-1.5 px-2">
+          <div className="text-2xl font-extrabold tabular-nums leading-none">{String(v).padStart(2, '0')}</div>
+          <div className="text-xs mt-0.5 opacity-80">{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OfferTicket({ offer, dealsSlug }) {
+  const end = offer.ends_at ? new Date(offer.ends_at).getTime() : NaN;
+  const hasEnd = !Number.isNaN(end);
+  const [now, setNow] = useState(null);
 
   useEffect(() => {
-    if (sliderData.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % sliderData.length);
-    }, 4000); 
-    return () => clearInterval(timer);
-  }, [sliderData.length]);
+    if (!hasEnd) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [hasEnd]);
+
+  if (offer.is_active === false || (hasEnd && now !== null && now >= end)) return null;
+  const href = offer.link || `/menu#${dealsSlug}`;
+  const handleClick = onMenuLinkClick(href);
+
+  return (
+    <section className="max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pt-14 sm:pt-24" aria-labelledby="offer-title">
+      <div className="nb rounded-3xl overflow-hidden bg-[#FFC21A] text-[#1a1210] grid md:grid-cols-[1.15fr_auto_1fr]">
+        
+        {/* Yellow Box Content */}
+        <div className="order-3 md:order-1 p-6 sm:p-10 flex flex-col items-start gap-4">
+          {offer.badge && (
+            <span className="inline-block -rotate-2 rounded-lg bg-[#1a1210] text-[#FFC21A] text-sm font-bold px-3 py-1">{offer.badge}</span>
+          )}
+          <h2 id="offer-title" className={`${display.className} text-4xl sm:text-6xl font-extrabold leading-[0.95] tracking-tight`}>
+            {offer.title}
+            {offer.highlight && <span className="block text-orange-700">{offer.highlight}</span>}
+          </h2>
+          {offer.description && <p className="text-base sm:text-lg font-medium max-w-md whitespace-pre-line">{offer.description}</p>}
+          {offer.price != null && offer.price !== '' && (
+            <p className="flex items-baseline gap-3">
+              <span className={`${display.className} text-4xl sm:text-5xl font-extrabold`}>{fmt(offer.price)}</span>
+              {offer.old_price ? <span className="text-lg font-semibold line-through opacity-60">{fmt(offer.old_price)}</span> : null}
+            </p>
+          )}
+          {hasEnd && now !== null && <Countdown endsAt={end} now={now} />}
+          <Link href={href} onClick={handleClick}
+            className="nb nb-press mt-1 inline-grid h-12 px-8 place-items-center rounded-2xl bg-[#1a1210] text-white font-extrabold">
+            {offer.button_text || 'Claim this offer'}
+          </Link>
+        </div>
+
+        {/* 🎟️ Yellow zigzag divider with slightly rounded tips */}
+        <div aria-hidden="true" className="order-2 md:order-2 ticket-wave" />
+
+        {/* Image Content */}
+        <Link href={href} onClick={handleClick}
+          aria-label={offer.title || 'Limited-time offer'}
+          className="order-1 md:order-3 relative z-0 block min-h-56 md:min-h-full bg-orange-600">
+          <Pic src={offer.img} alt={offer.title || 'Limited-time offer'} sizes="(max-width: 768px) 100vw, 40vw" fit="object-fill" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- video tile ---------- */
+function VideoTile({ src }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const obs = new IntersectionObserver(([e]) => (e.isIntersecting ? v.play().catch(() => {}) : v.pause()), { threshold: 0.4 });
+    obs.observe(v);
+    return () => obs.disconnect();
+  }, []);
+  const toggle = () => { const v = ref.current; if (v) v.paused ? v.play().catch(() => {}) : v.pause(); };
+  return (
+    <button type="button" onClick={toggle} aria-label="Play or pause video"
+      className="nb snap-center shrink-0 w-44 sm:w-56 md:w-64 aspect-9/16 rounded-3xl overflow-hidden bg-[#1c1410]">
+      <video ref={ref} src={getVideoPath(src)} loop muted playsInline preload="none" className="w-full h-full object-cover" />
+    </button>
+  );
+}
+
+const Heading = ({ title, sub, href, linkText }) => (
+  <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8">
+    <div>
+      <h2 className={`${display.className} text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white`}>{title}</h2>
+      {sub && <p className="mt-1 text-sm sm:text-base font-medium text-neutral-600 dark:text-orange-200/70">{sub}</p>}
+    </div>
+    {href && (
+      <Link href={href} onClick={onMenuLinkClick(href)}
+        className="shrink-0 text-sm font-bold underline underline-offset-4 decoration-2 decoration-orange-500">
+        {linkText}
+      </Link>
+    )}
+  </div>
+);
+
+/* ---------- page ---------- */
+export default function HomeClientWrapper({ initialData }) {
+  const sliderData = initialData?.slider || [];
+  const promos = (initialData?.promos || []).slice(0, 3);
+  const menuImages = initialData?.menuImages || [];
+  const videos = initialData?.videos || [];
+  const offer = initialData?.offer === undefined ? DEFAULT_OFFER : initialData.offer;
+  const dealsSlug = initialData?.dealsSlug || DEALS_SLUG;
+
+  const [when, setWhen] = useState('today');
+  useEffect(() => {
+    const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+    setWhen(h >= 17 || h < 5 ? 'tonight' : 'today');
+  }, []);
+
+  const [showCta, setShowCta] = useState(false);
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState('');
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowCta(window.scrollY > 360);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const handleNewsletterSubmit = (e) => {
     e.preventDefault();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newsletterEmail)) {
-      setNewsletterMsg("Please enter a CORRECT email address!");
-      setNewsletterSuccess(false);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setMsg('Enter a valid email address, like name@example.com.');
+      setOk(false);
       return;
     }
-    setNewsletterMsg("You are added to our list! 🎉 Enjoy your delicious updates.");
-    setNewsletterSuccess(true);
-    setNewsletterEmail('');
+    setMsg("You're on the list! 🎉 Watch your inbox for deals.");
+    setOk(true);
+    setEmail('');
   };
 
+  const wrap = 'max-w-340 mx-auto px-4 sm:px-6 lg:px-8';
+  const bento = promos.length === 3;
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 selection:bg-orange-500 selection:text-white overflow-x-hidden antialiased relative z-0 transition-colors duration-500 animate-[fadeIn_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-      
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
+    <div className="min-h-screen bg-(--paper) text-neutral-900 dark:text-neutral-100 selection:bg-orange-500 selection:text-white overflow-x-hidden antialiased pb-24 md:pb-0">
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root { --ink: #1a1210; --paper: #fff8e7; }
+        .dark { --ink: #fb923c; --paper: #120d0a; }
+        .nb { border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+        
+        /* White outline container specifically */
+        .nb-white { border: 2px solid #ffffff; box-shadow: 4px 4px 0 #ffffff; }
+        
+        .nb-press { transition: transform .12s, box-shadow .12s; }
+        .nb-press:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--ink); }
+        .nb-press:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 var(--ink); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
 
-      {/* Background Ambient Orange Glow Reflections */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-225 h-175 bg-orange-600/15 dark:bg-orange-600/20 rounded-full blur-[140px] pointer-events-none -z-10"></div>
-      <div className="absolute top-[40%] left-10 w-100 h-100 bg-amber-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
-      <div className="absolute top-[70%] right-10 w-125 h-125 bg-orange-500/15 rounded-full blur-[150px] pointer-events-none -z-10"></div>
+        /* 🎟️ Yellow zigzag divider with slightly rounded tips extending over the image */
+        .ticket-wave {
+          position: relative;
+          z-index: 10;
+          background-repeat: repeat-x;
+          background-position: center;
+          background-size: 24px 12px;
+          height: 12px;
+          margin-top: -12px; /* Shifts over the image on mobile */
+          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0,12 L10,2 Q12,0 14,2 L24,12 Z' fill='%23FFC21A'/%3E%3C/svg%3E");
+        }
+        @media (min-width: 768px) {
+          .ticket-wave {
+            margin-top: 0;
+            margin-right: -12px; /* Shifts right over the image on desktop */
+            background-repeat: repeat-y;
+            background-size: 12px 24px;
+            width: 12px;
+            height: 100%;
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='24' viewBox='0 0 12 24'%3E%3Cpath d='M0,0 L10,10 Q12,12 10,14 L0,24 Z' fill='%23FFC21A'/%3E%3C/svg%3E");
+          }
+        }
+      ` }} />
 
-      {/* 1. AUTO-SCROLLING SLIDER */}
-      <section className="relative w-full max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-8">
-        <div className="relative h-42.5 sm:h-87.5 md:h-125 rounded-2xl sm:rounded-[3rem] overflow-hidden transform-gpu shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] bg-[#0a0a0a] ring-1 ring-black/5 dark:ring-orange-500/30">
-          {sliderData.map((item, index) => (
-            <Link
-              key={index}
-              href={item.link || '/menu'}
-              className={`absolute inset-0 transition-all duration-1000 ease-in-out transform cursor-pointer ${
-                index === currentSlide 
-                  ? 'opacity-100 scale-100 pointer-events-auto' 
-                  : 'opacity-0 scale-105 pointer-events-none'
-              }`}
-            >
-              <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent z-10" />
-              <img src={getImagePath(item.img)} alt={`Slide ${index + 1}`} className="w-full h-full object-fill" />
-            </Link>
-          ))}
-          {sliderData.length > 1 && (
-            <div className="absolute bottom-3 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2 z-20 bg-white/10 dark:bg-black/30 backdrop-blur-xl px-3 sm:px-5 py-1.5 sm:py-3 rounded-xl sm:rounded-2xl border border-white/20 dark:border-orange-500/20 shadow-xl" onClick={(e) => e.stopPropagation()}>
-              {sliderData.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-1.5 sm:h-2 rounded-full transition-all duration-500 ease-out cursor-pointer ${
-                    idx === currentSlide ? 'bg-orange-500 w-6 sm:w-10 shadow-[0_0_10px_rgba(249,115,22,0.8)]' : 'bg-white/40 w-1.5 sm:w-2.5 hover:bg-white/70'
-                  }`}
-                />
+      {/* 1. Hero */}
+      <section className={`${wrap} pt-6 sm:pt-12`}>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 mb-6 sm:mb-10">
+          <div className="max-w-2xl">
+            <h1 className={`${display.className} text-5xl sm:text-7xl lg:text-8xl font-extrabold leading-[0.92] tracking-tighter text-neutral-900 dark:text-white`}>
+              What are you craving <span className="nb inline-block -rotate-2 bg-[#FFC21A] text-[#1a1210] px-3 rounded-xl">{when}?</span>
+            </h1>
+            <p className="mt-4 text-base sm:text-lg font-medium text-neutral-700 dark:text-orange-100/80 max-w-lg">
+              Pizzas, burgers, shawarmas and more, made fresh and brought to your door.
+            </p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <Link href="/menu" className="nb nb-press h-14 px-8 grid place-items-center rounded-2xl bg-orange-600 text-white text-lg font-extrabold">Start your order</Link>
+            <Link href={`/menu#${dealsSlug}`} onClick={onMenuLinkClick(`/menu#${dealsSlug}`)}
+              className="nb nb-press h-14 px-6 grid place-items-center rounded-2xl bg-white dark:bg-[#1c1410] font-bold">Deals</Link>
+          </div>
+        </div>
+        <HeroSlider slides={sliderData} />
+      </section>
+
+      {/* 2. Categories */}
+      {menuImages.length > 0 && (
+        <section className={`${wrap} pt-14 sm:pt-24`}>
+          <Heading title="Pick your craving" sub="Tap one and we'll take you straight to it." href="/menu" linkText="Full menu" />
+          <div className="flex gap-5 sm:gap-8 overflow-x-auto sm:flex-wrap sm:justify-center hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-3">
+            {menuImages.map((c, idx) => {
+              const href = menuHref(c.category_slug);
+              return (
+                <Link
+                  key={c.id ?? idx}
+                  href={href}
+                  onClick={() => rememberMenuTarget(c.category_slug)}
+                  className="group shrink-0 w-24 sm:w-36 flex flex-col items-center gap-3 text-center"
+                >
+                  <span className="nb nb-press relative block w-24 h-24 sm:w-36 sm:h-36 rounded-full overflow-hidden bg-white dark:bg-[#1c1410]">
+                    {c.img ? (
+                      <Pic src={c.img} alt="" sizes="(max-width: 640px) 96px, 144px" fit="object-fill" className="transition-transform duration-500 group-hover:scale-110" />
+                    ) : (
+                      <span className="absolute inset-0 grid place-items-center bg-orange-100 dark:bg-[#2a1d16]">
+                        <span className={`${display.className} text-3xl sm:text-4xl font-extrabold text-orange-700 dark:text-orange-300`}>
+                          {(c.name || '?').trim().charAt(0).toUpperCase()}
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-extrabold text-sm sm:text-lg leading-tight">{c.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 3. Limited-time offer */}
+      {offer && <OfferTicket offer={offer} dealsSlug={dealsSlug} />}
+
+      {/* 4. Deals */}
+      {promos.length > 0 && (
+        <section className={`${wrap} pt-14 sm:pt-24`}>
+          <Heading title="Exclusive deals" sub="Handcrafted and delivered fast." href={`/menu#${dealsSlug}`} linkText="See all deals" />
+          <div className={`flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible pb-3 md:grid ${bento ? 'md:grid-cols-3 md:grid-rows-2 md:h-120' : promos.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+            {promos.map((p, idx) => {
+              const href = p.link || `/menu#${dealsSlug}`;
+              return (
+                <Link key={idx} href={href} onClick={onMenuLinkClick(href)}
+                  className={`nb nb-press group snap-center shrink-0 w-[78%] sm:w-[55%] aspect-4/5 md:w-auto relative rounded-3xl overflow-hidden bg-neutral-200 dark:bg-[#18110e] ${bento ? 'md:aspect-auto' : 'md:aspect-16/9'} ${bento && idx === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
+                  <Pic src={p.img} alt={`Deal ${idx + 1}`} sizes="(max-width: 768px) 80vw, 50vw" fit="object-fill" className="transition-transform duration-700 group-hover:scale-105" />
+                  {p.badge && <span className="absolute top-3 left-3 z-10 -rotate-2 rounded-lg bg-[#FFC21A] text-[#1a1210] text-sm font-extrabold px-3 py-1 border-2 border-[#1a1210]">{p.badge}</span>}
+                  <span className="absolute left-3 bottom-3 z-10 rounded-xl bg-white text-[#1a1210] text-sm font-extrabold px-4 py-2 border-2 border-[#1a1210]">Order this deal</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Videos */}
+      {videos.length > 0 && (
+        <section className={`${wrap} pt-14 sm:pt-24`}>
+          <Heading title="Taste the action" sub="Tap a video to pause or play." />
+          <div className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 py-2 pr-2">
+            {videos.map((v, idx) => <VideoTile key={idx} src={v.video_url} />)}
+          </div>
+        </section>
+      )}
+
+      {/* 6. Newsletter + social */}
+      <section className={`${wrap} pt-14 sm:pt-24 pb-16 sm:pb-24`}>
+        <div className="grid md:grid-cols-2 gap-5 sm:gap-8">
+          <div className="nb rounded-3xl bg-white dark:bg-[#1c1410] p-6 sm:p-10 flex flex-col gap-5">
+            <div>
+              <h2 className={`${display.className} text-3xl sm:text-4xl font-extrabold tracking-tight`}>Get delicious alerts</h2>
+              <p className="mt-2 font-medium text-neutral-600 dark:text-orange-100/70 max-w-md">Discount codes and secret menu drops, straight to your inbox.</p>
+            </div>
+            <form onSubmit={handleNewsletterSubmit} noValidate className="flex flex-col sm:flex-row gap-3">
+              <label className="grow">
+                <span className="sr-only">Email address</span>
+                <input type="email" inputMode="email" autoComplete="email" value={email}
+                  onChange={(e) => { setEmail(e.target.value); setMsg(''); }}
+                  placeholder="Your email address"
+                  className="w-full h-12 rounded-xl border-2 border-(--ink) bg-transparent px-4 text-base placeholder-neutral-500 focus:outline-none focus:ring-4 focus:ring-orange-500/30" />
+              </label>
+              <button type="submit" className="nb nb-press h-12 px-7 rounded-xl bg-orange-600 text-white font-extrabold">Subscribe</button>
+            </form>
+            <p role="status" className={`text-sm font-bold min-h-5 ${ok ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{msg}</p>
+          </div>
+
+          {/* Clean White outline applied directly using .nb-white */}
+          <div className="nb-white rounded-3xl bg-[#1a1210] text-white p-6 sm:p-10 flex flex-col gap-6 justify-center">
+            <div>
+              <h2 className={`${display.className} text-3xl sm:text-4xl font-extrabold tracking-tight`}>Follow the vibe</h2>
+              <p className="mt-2 font-medium text-orange-100/80 max-w-md">Daily cravings and food drops, wherever you scroll.</p>
+            </div>
+            <div className="flex flex-wrap gap-3 sm:gap-4">
+              {SOCIALS.map(({ name, href, Icon, color, style }) => (
+                <a key={name} href={href} target="_blank" rel="noreferrer noopener" aria-label={`Pizzger on ${name}`}
+                  className={`w-14 h-14 sm:w-16 sm:h-16 grid place-items-center rounded-2xl bg-[#FFC21A] border-2 border-white hover:-translate-y-1 transition ${color}`}>
+                  <Icon className="w-6 h-6 sm:w-7 sm:h-7" style={style} />
+                </a>
               ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* 2. "EXCLUSIVE DEALS" HEADING */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-20 pb-6 sm:pb-12 text-center">
-        <Link 
-          href="/menu#exclusive-deals" 
-          className="inline-block text-2xl sm:text-5xl md:text-6xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300 hover:from-orange-600 hover:to-orange-400 transition-all duration-500 transform hover:scale-[1.02] relative group"
-        >
-          Exclusive Deals
-          <span className="absolute -bottom-2 left-1/2 w-0 h-1.5 bg-orange-500 rounded-full transition-all duration-500 group-hover:w-full group-hover:left-0"></span>
-        </Link>
-        <p className="text-gray-500 dark:text-orange-200/70 text-xs sm:text-base mt-2 sm:mt-4 font-medium tracking-wide max-w-xl mx-auto">
-          Handcrafted perfection delivered blazing fast to your door.
-        </p>
-      </section>
-
-      {/* 3. 3 PROMO CARDS */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-24 pt-2">
-        <div className="flex md:block overflow-x-auto md:overflow-x-visible snap-x snap-mandatory hide-scrollbar gap-4 md:gap-0 min-h-75 sm:min-h-105 py-4 items-center justify-start md:justify-center relative">
-          
-          {promos[0] && (
-            <Link href={promos[0].link || '/menu'} className="snap-center shrink-0 w-60 sm:w-72 md:w-80 md:absolute md:left-4 lg:left-10 z-10 transform md:-rotate-6 md:translate-y-4 hover:z-30 hover:-translate-y-4 hover:rotate-0 transition-all duration-500 bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden transform-gpu shadow-xl md:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_50px_-10px_rgba(234,88,12,0.15)] ring-1 ring-gray-900/5 dark:ring-orange-500/20 group block cursor-pointer">
-              <div className="h-56 sm:h-72 md:h-80 bg-gray-50 dark:bg-[#18110e] relative overflow-hidden rounded-2xl sm:rounded-[2.5rem]">
-                <img src={getImagePath(promos[0].img)} alt="Promo 1" className="w-full h-full object-fill group-hover:scale-110 transition-transform duration-700 ease-out" />
-              </div>
-            </Link>
-          )}
-
-          {promos[1] && (
-            <Link href={promos[1].link || '/menu'} className="snap-center shrink-0 w-65 sm:w-80 md:w-96 md:absolute md:left-1/2 md:-translate-x-1/2 z-20 transform hover:-translate-y-6 transition-all duration-500 bg-white dark:bg-[#1c1410]/80 dark:backdrop-blur-xl rounded-2xl sm:rounded-[3rem] overflow-hidden transform-gpu shadow-xl md:shadow-[0_20px_60px_-15px_rgba(249,115,22,0.3)] ring-2 ring-orange-500/50 group block cursor-pointer">
-              <div className="h-60 sm:h-80 md:h-96 bg-gray-50 dark:bg-[#18110e] relative overflow-hidden rounded-2xl sm:rounded-[3rem]">
-                <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <img src={getImagePath(promos[1].img)} alt="Promo 2" className="w-full h-full object-fill group-hover:scale-110 transition-transform duration-700 ease-out" />
-                {promos[1].badge && (
-                  <span className="absolute top-3 left-3 sm:top-5 sm:left-5 bg-linear-to-r from-orange-600 to-orange-500 text-white text-[10px] sm:text-xs font-black uppercase tracking-widest px-3 sm:px-4 py-1 sm:py-2 rounded-full shadow-lg z-20 backdrop-blur-sm border border-white/20">{promos[1].badge}</span>
-                )}
-              </div>
-            </Link>
-          )}
-
-          {promos[2] && (
-            <Link href={promos[2].link || '/menu'} className="snap-center shrink-0 w-60 sm:w-72 md:w-80 md:absolute md:right-4 lg:right-10 z-10 transform md:rotate-6 md:translate-y-4 hover:z-30 hover:-translate-y-4 hover:rotate-0 transition-all duration-500 bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden transform-gpu shadow-xl md:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_50px_-10px_rgba(234,88,12,0.15)] ring-1 ring-gray-900/5 dark:ring-orange-500/20 group block cursor-pointer">
-              <div className="h-56 sm:h-72 md:h-80 bg-gray-50 dark:bg-[#18110e] relative overflow-hidden rounded-2xl sm:rounded-[2.5rem]">
-                <img src={getImagePath(promos[2].img)} alt="Promo 3" className="w-full h-full object-fill group-hover:scale-110 transition-transform duration-700 ease-out" />
-              </div>
-            </Link>
-          )}
-
-        </div>
-      </section>
-
-      {/* 4. "OUR SIGNATURE MENU" HEADING */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-10 sm:pb-16 text-center">
-        <h2 className="text-2xl sm:text-5xl md:text-6xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300">
-          Our Signature Menu
-        </h2>
-        <div className="w-16 sm:w-24 h-1.5 bg-linear-to-r from-orange-500 to-orange-400 mx-auto mt-3 sm:mt-6 rounded-full shadow-[0_0_15px_rgba(249,115,22,0.5)]"></div>
-      </section>
-
-      {/* 5. DYNAMIC MENU GRID IMAGES */}
-      <section className="max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-28">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-10">
-          {menuImages.map((item, idx) => (
-            <Link key={idx} href={`/menu#${item.category_id || 'menu'}`} className="flex flex-col group cursor-pointer">
-              <div className="w-full bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-2xl sm:rounded-4xl p-1.5 sm:p-2 overflow-hidden transform-gpu shadow-md sm:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_10px_30px_rgba(234,88,12,0.1)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.12)] hover:-translate-y-2 transition-all duration-500 ring-1 ring-gray-100 dark:ring-orange-500/20">
-                <div className="h-36 sm:h-64 rounded-xl sm:rounded-4xl bg-gray-50 dark:bg-[#18110e] overflow-hidden transform-gpu relative">
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-500 z-10 pointer-events-none" />
-                  <img src={getImagePath(item.img)} alt={item.name || 'Menu Category'} className="w-full h-full object-fill group-hover:scale-110 transition-transform duration-700 ease-out" />
-                </div>
-              </div>
-              <div className="mt-2 sm:mt-5 flex items-center justify-between px-1 sm:px-2">
-                <h3 className="text-xs sm:text-xl font-black uppercase tracking-wider sm:tracking-widest text-gray-800 dark:text-orange-100 group-hover:text-orange-600 transition-colors duration-300">
-                  {item.name}
-                </h3>
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-orange-50 dark:bg-[#1c1410] dark:border dark:border-orange-500/30 text-orange-500 flex items-center justify-center opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"></path></svg>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 6. JUMBO DEAL BANNER */}
-      <section className="max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-28">
-        <div className="bg-linear-to-br from-[#1c1410] via-[#120D0A] to-[#1a120e] dark:border dark:border-orange-500/30 rounded-2xl sm:rounded-[3rem] p-5 sm:p-12 md:p-16 text-white shadow-[0_20px_50px_-10px_rgba(234,88,12,0.2)] flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-12 relative overflow-hidden group">
-          <div className="absolute -right-20 -top-20 w-100 h-100 bg-orange-600/30 rounded-full blur-[100px] pointer-events-none group-hover:bg-orange-600/40 transition-colors duration-700"></div>
-          <div className="absolute -left-20 -bottom-20 w-75 h-75 bg-amber-600/20 rounded-full blur-[80px] pointer-events-none"></div>
-          
-          <div className="space-y-4 sm:space-y-8 text-center md:text-left z-10 max-w-xl">
-            <span className="inline-block bg-orange-500/20 backdrop-blur-xl text-orange-400 text-[10px] sm:text-xs font-black px-4 sm:px-5 py-1.5 sm:py-2 rounded-full uppercase tracking-widest border border-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.2)]">Special Limited Offer</span>
-            <div className="space-y-2 sm:space-y-4">
-              <h3 className="text-2xl sm:text-5xl md:text-6xl font-black uppercase tracking-tighter leading-tight text-transparent bg-clip-text bg-linear-to-r from-white to-orange-200">JUMBO DEAL <br/> <span className="text-orange-500">ORDER NOW!</span></h3>
-              <p className="text-xs sm:text-lg font-medium text-orange-100/70 max-w-md">
-                Order any of your favourite meal worth 1999/- and get our crispy hot wings <span className="text-white font-bold">FREE</span>.
-              </p>
-            </div>
-            <div>
-              <Link href="/menu#exclusive-deals" className="inline-block bg-linear-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 px-6 sm:px-10 rounded-xl sm:rounded-2xl uppercase tracking-widest shadow-[0_10px_30px_rgba(249,115,22,0.4)] transform hover:-translate-y-1 active:scale-95 transition-all text-xs sm:text-sm">
-                Claim Offer
-              </Link>
-            </div>
           </div>
-
-          <Link href="/menu#exclusive-deals" className="z-10 transform md:rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-500 shrink-0 cursor-pointer relative">
-            <div className="absolute inset-0 bg-orange-500 rounded-2xl sm:rounded-[2.5rem] blur-xl opacity-40 group-hover:opacity-60 transition-opacity"></div>
-            <div className="w-48 sm:w-72 md:w-80 lg:w-100 h-44 sm:h-72 lg:h-80 rounded-2xl sm:rounded-[2.5rem] overflow-hidden transform-gpu shadow-2xl border border-orange-500/30 bg-[#120D0A] relative">
-              <img src="/images/4.webp" alt="Jumbo Deal Preview" className="w-full h-full object-fill" />
-            </div>
-          </Link>
         </div>
       </section>
 
-     {/* 7. DYNAMIC VIDEOS HORIZONTAL SCROLLER */}
-      <section className="max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-28">
-        <div className="flex flex-col items-center mb-8 sm:mb-14">
-          <h2 className="text-2xl sm:text-5xl md:text-6xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-gray-900 via-gray-800 to-gray-500 dark:from-white dark:via-orange-100 dark:to-orange-300">Taste The Action</h2>
-          <div className="w-16 sm:w-20 h-1.5 bg-linear-to-r from-orange-500 to-orange-400 mt-3 sm:mt-5 rounded-full"></div>
-        </div>
-        
-        {/* Horizontal Scroll Container */}
-        <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4 sm:gap-6 pb-4 pt-2">
-          {videos.map((vidItem, idx) => (
-            <div key={idx} className="snap-center shrink-0 w-44 sm:w-56 md:w-64 aspect-9/16 bg-[#1c1410] rounded-2xl sm:rounded-4xl overflow-hidden shadow-lg hover:shadow-2xl relative group ring-1 ring-orange-500/20 transform hover:-translate-y-2 transition-all duration-500 cursor-pointer transform-gpu">
-              <video 
-                src={getVideoPath(vidItem.video_url)} 
-                autoPlay 
-                loop 
-                muted 
-                playsInline 
-                preload="metadata"
-                className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity duration-500 scale-100 group-hover:scale-105" 
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/10 to-transparent flex flex-col justify-end p-3 sm:p-5 opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      {/* 8. NEWSLETTER SECTION */}
-      <section className="max-w-340 mx-auto px-4 sm:px-6 lg:px-8 pb-20 sm:pb-32">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-          
-          <div className="bg-[#18110e] dark:border dark:border-orange-500/30 text-white rounded-3xl sm:rounded-[3rem] p-6 sm:p-12 shadow-[0_20px_50px_-10px_rgba(234,88,12,0.15)] flex flex-col justify-center gap-6 sm:gap-8 relative overflow-hidden">
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-600/30 rounded-full blur-[80px]"></div>
-            <div className="relative z-10">
-              <h3 className="text-2xl sm:text-4xl font-black uppercase tracking-tighter mb-2 sm:mb-4 text-transparent bg-clip-text bg-linear-to-r from-white to-orange-200">Get Delicious Alerts</h3>
-              <p className="text-xs sm:text-base text-orange-100/70 font-medium max-w-md">Subscribe to get special discount codes and secret menu drops directly in your inbox.</p>
-            </div>
-            
-            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3 relative z-10">
-              <input 
-                type="email" 
-                value={newsletterEmail}
-                onChange={(e) => { setNewsletterEmail(e.target.value); setNewsletterMsg(''); }}
-                placeholder="Enter your email address..." 
-                className="bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 focus:bg-white/10 focus:ring-1 focus:ring-orange-500/50 grow text-xs sm:text-sm font-medium transition-all"
-              />
-              <button type="submit" className="bg-white text-black hover:bg-gray-200 font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-colors text-xs sm:text-sm uppercase tracking-widest whitespace-nowrap shadow-lg cursor-pointer">
-                Subscribe
-              </button>
-            </form>
-
-            {newsletterMsg && (
-              <p className={`text-xs font-bold uppercase tracking-wider relative z-10 ${newsletterSuccess ? 'text-green-400' : 'text-red-400'}`}>
-                {newsletterMsg}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-white dark:bg-[#18110e] dark:border dark:border-orange-500/30 text-gray-900 dark:text-gray-100 rounded-3xl sm:rounded-[3rem] p-6 sm:p-12 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.08)] flex flex-col justify-center gap-6 sm:gap-8 relative overflow-hidden">
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-orange-500/10 rounded-full blur-[80px]"></div>
-            <div className="relative z-10">
-              <h3 className="text-2xl sm:text-4xl font-black uppercase tracking-tighter mb-2 sm:mb-4 text-transparent bg-clip-text bg-linear-to-r from-gray-900 to-gray-500 dark:from-white dark:to-orange-200">Follow The Vibe</h3>
-              <p className="text-xs sm:text-base text-gray-500 dark:text-orange-100/70 font-medium max-w-md">Join our community across all platforms for daily cravings and food drops.</p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3 sm:gap-6 relative z-10">
-              <a href="https://www.facebook.com/profile.php?id=61583111042280#" target="_blank" rel="noreferrer" className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 dark:bg-[#120D0A] dark:border dark:border-orange-500/20 rounded-xl sm:rounded-[1.25rem] flex items-center justify-center shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-[#1877F2]" title="Facebook">
-                <FaFacebookF className="w-6 h-6 sm:w-8 sm:h-8" />
-              </a>
-              <a href="https://www.instagram.com/pizzgerrwp/" target="_blank" rel="noreferrer" className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 dark:bg-[#120D0A] dark:border dark:border-orange-500/20 rounded-xl sm:rounded-[1.25rem] flex items-center justify-center shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-[#E4405F]" title="Instagram">
-                <FaInstagram className="w-6 h-6 sm:w-8 sm:h-8" />
-              </a>
-              <a href="https://www.snapchat.com/@pizzgerrwp" target="_blank" rel="noreferrer" className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 dark:bg-[#120D0A] dark:border dark:border-orange-500/20 rounded-xl sm:rounded-[1.25rem] flex items-center justify-center shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-[#FFFC00]" title="Snapchat">
-                <SiSnapchat className="w-6 h-6 sm:w-8 sm:h-8" style={{ filter: "drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)" }} />
-              </a>
-              <a href="https://www.tiktok.com/@pizzger.rwp" target="_blank" rel="noreferrer" className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 dark:bg-[#120D0A] dark:border dark:border-orange-500/20 rounded-xl sm:rounded-[1.25rem] flex items-center justify-center shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-black dark:text-white" title="TikTok">
-                <FaTiktok className="w-6 h-6 sm:w-8 sm:h-8" />
-              </a>
-            </div>
-
-          </div>
-
-        </div>
-      </section>
-
+      {/* Sticky order button on phones */}
+      <Link href="/menu" aria-hidden={!showCta} tabIndex={showCta ? 0 : -1}
+        className={`nb nb-press md:hidden fixed inset-x-4 z-40 h-14 grid place-items-center rounded-2xl bg-orange-600 text-white font-extrabold text-lg transition-all duration-300 ${showCta ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'}`}
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        Order now
+      </Link>
     </div>
   );
 }

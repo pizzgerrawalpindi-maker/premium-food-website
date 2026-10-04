@@ -1,13 +1,32 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import LocationPopup from '@/app/components/LocationPopup'; // ⚠️ adjust this path if LocationPopup lives elsewhere in your project
+import { Bricolage_Grotesque } from 'next/font/google';
+import LocationPopup from '@/app/components/LocationPopup'; // ⚠️ adjust path if needed
+
+const display = Bricolage_Grotesque({ subsets: ['latin'], display: 'swap' });
+
+/* Shared rule with LocationPopup.jsx — coordinates exist AND the location was
+   confirmed in this browser session. */
+const isLocationResolved = () => {
+  try {
+    const lat = parseFloat(localStorage.getItem('user_detected_lat'));
+    const lng = parseFloat(localStorage.getItem('user_detected_lng'));
+    const resolved =
+      sessionStorage.getItem('location_resolved') === '1' ||
+      !!sessionStorage.getItem('user_detected_address');
+    return Number.isFinite(lat) && Number.isFinite(lng) && resolved;
+  } catch {
+    return false;
+  }
+};
 
 export default function CartPage() {
+  /* --------------------------- state --------------------------- */
   const [cartItems, setCartItems] = useState([]);
-  
-  // Form States
+  const [mounted, setMounted] = useState(false);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
@@ -20,48 +39,54 @@ export default function CartPage() {
   const [errors, setErrors] = useState({});
   const [showDetails, setShowDetails] = useState(false);
 
-  // 📍 Location Gate — checkout is blocked until we have a real lat/lng on file.
-  const [hasLocation, setHasLocation] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const lat = parseFloat(localStorage.getItem('user_detected_lat'));
-    const lng = parseFloat(localStorage.getItem('user_detected_lng'));
-    return Number.isFinite(lat) && Number.isFinite(lng);
-  });
+  const [hasLocation, setHasLocation] = useState(false);
+  const [userLat, setUserLat] = useState(null);
+  const [userLng, setUserLng] = useState(null);
 
-  const checkStoredLocation = () => {
-    const lat = parseFloat(localStorage.getItem('user_detected_lat'));
-    const lng = parseFloat(localStorage.getItem('user_detected_lng'));
-    setHasLocation(Number.isFinite(lat) && Number.isFinite(lng));
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const noticeTimerRef = useRef(null);
 
-  useEffect(() => {
-    window.addEventListener('locationDetected', checkStoredLocation);
-    window.addEventListener('storage', checkStoredLocation);
-    return () => {
-      window.removeEventListener('locationDetected', checkStoredLocation);
-      window.removeEventListener('storage', checkStoredLocation);
-    };
-  }, []);
-
-  // Offer Modal State
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [confettiPieces, setConfettiPieces] = useState([]);
 
-  // ⚡ Force Scroll to Top on Mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+  /* --------------------------- helpers --------------------------- */
+  const showNotice = useCallback((text, type = 'error') => {
+    setNotice({ type, text });
+    clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 5000);
   }, []);
 
-  // Load Cart Data on Mount & handle Free Item (4.webp) logic
+  const refreshLocation = useCallback(() => {
+    try {
+      const lat = parseFloat(localStorage.getItem('user_detected_lat'));
+      const lng = parseFloat(localStorage.getItem('user_detected_lng'));
+      setUserLat(Number.isFinite(lat) ? lat : null);
+      setUserLng(Number.isFinite(lng) ? lng : null);
+      setHasLocation(isLocationResolved());
+    } catch {
+      setUserLat(null);
+      setUserLng(null);
+      setHasLocation(false);
+    }
+  }, []);
+
+  /* --------------------------- initial load --------------------------- */
   useEffect(() => {
-    let savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
-    
+    let savedCart = [];
+    try {
+      savedCart = JSON.parse(localStorage.getItem('food_cart') || '[]');
+      if (!Array.isArray(savedCart)) savedCart = [];
+    } catch {
+      savedCart = [];
+    }
+
     const normalItemsSubtotal = savedCart
-      .filter(item => item.id !== 'free-promo-item-4')
-      .reduce((acc, item) => acc + (item.price * item.quantity), 0);
+      .filter((item) => item.id !== 'free-promo-item-4')
+      .reduce((acc, item) => acc + item.price * item.quantity, 0);
 
     if (normalItemsSubtotal >= 2000) {
-      const freeItemIndex = savedCart.findIndex(item => item.id === 'free-promo-item-4');
+      const freeItemIndex = savedCart.findIndex((item) => item.id === 'free-promo-item-4');
       if (freeItemIndex === -1) {
         savedCart.push({
           id: 'free-promo-item-4',
@@ -70,28 +95,49 @@ export default function CartPage() {
           price: 0,
           quantity: 1,
           image: '/images/4.webp',
-          isFree: true
+          isFree: true,
         });
       } else {
         savedCart[freeItemIndex].quantity = 1;
       }
     } else {
-      savedCart = savedCart.filter(item => item.id !== 'free-promo-item-4');
+      savedCart = savedCart.filter((item) => item.id !== 'free-promo-item-4');
     }
 
     setCartItems(savedCart);
-    localStorage.setItem('food_cart', JSON.stringify(savedCart));
-  }, []);
+    try {
+      localStorage.setItem('food_cart', JSON.stringify(savedCart));
+    } catch {}
 
+    refreshLocation();
+    setMounted(true);
+    try {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+
+    const onLoc = () => refreshLocation();
+    window.addEventListener('locationDetected', onLoc);
+    window.addEventListener('storage', onLoc);
+
+    return () => {
+      window.removeEventListener('locationDetected', onLoc);
+      window.removeEventListener('storage', onLoc);
+      clearTimeout(noticeTimerRef.current);
+    };
+  }, [refreshLocation]);
+
+  /* --------------------------- cart mutations --------------------------- */
   const updateCart = (updatedItems) => {
     const normalSubtotal = updatedItems
-      .filter(item => item.id !== 'free-promo-item-4')
-      .reduce((acc, item) => acc + (item.price * item.quantity), 0);
+      .filter((item) => item.id !== 'free-promo-item-4')
+      .reduce((acc, item) => acc + item.price * item.quantity, 0);
 
     let finalItems = [...updatedItems];
 
     if (normalSubtotal >= 2000) {
-      const exists = finalItems.some(item => item.id === 'free-promo-item-4');
+      const exists = finalItems.some((item) => item.id === 'free-promo-item-4');
       if (!exists) {
         finalItems.push({
           id: 'free-promo-item-4',
@@ -100,91 +146,104 @@ export default function CartPage() {
           price: 0,
           quantity: 1,
           image: '/images/4.webp',
-          isFree: true
+          isFree: true,
         });
       }
     } else {
-      finalItems = finalItems.filter(item => item.id !== 'free-promo-item-4');
+      finalItems = finalItems.filter((item) => item.id !== 'free-promo-item-4');
     }
 
     setCartItems(finalItems);
-    localStorage.setItem('food_cart', JSON.stringify(finalItems));
+    try {
+      localStorage.setItem('food_cart', JSON.stringify(finalItems));
+    } catch {}
     window.dispatchEvent(new Event('cartUpdated'));
     window.dispatchEvent(new Event('storage'));
   };
 
   const increaseQty = (id) => {
-    const updated = cartItems.map(item => item.id === id && !item.isFree ? { ...item, quantity: item.quantity + 1 } : item);
+    const updated = cartItems.map((item) =>
+      item.id === id && !item.isFree ? { ...item, quantity: item.quantity + 1 } : item
+    );
     updateCart(updated);
   };
 
   const decreaseQty = (id) => {
-    const updated = cartItems.map(item => item.id === id && !item.isFree && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item);
+    const updated = cartItems.map((item) =>
+      item.id === id && !item.isFree && item.quantity > 1
+        ? { ...item, quantity: item.quantity - 1 }
+        : item
+    );
     updateCart(updated);
   };
 
   const removeItem = (id) => {
-    const updated = cartItems.filter(item => item.id !== id);
+    const updated = cartItems.filter((item) => item.id !== id);
     updateCart(updated);
   };
 
-  // 📍 Pizzger Exact Branch Location (Sir Syed Chowk, Tipu Road, Rawalpindi)
-  const BRANCH_LAT = 33.6041699; 
+  /* --------------------------- branch & distance --------------------------- */
+  const BRANCH_LAT = 33.6041699;
   const BRANCH_LNG = 73.0760369;
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; 
+    const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; 
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
-  // 🚀 Updated Distance-Based Delivery Charges Calculation
   const getDynamicDeliveryCharges = (dist) => {
     if (!Number.isFinite(dist)) return 40;
-
-    const km = Math.ceil(dist); 
-
-    // 1. First 3 km at 40/km
+    const km = Math.ceil(dist);
     if (km <= 3) return km * 40;
-
-    // 2. From 4th to 7th km (decreasing by 5 down to 20 for 7th km)
     if (km <= 7) {
-        let charges = 120;
-        let rate = 35;
-        for (let i = 4; i <= km; i++) {
-            charges += rate;
-            rate -= 5;
-        }
-        return charges;
+      let charges = 120;
+      let rate = 35;
+      for (let i = 4; i <= km; i++) {
+        charges += rate;
+        rate -= 5;
+      }
+      return charges;
     }
-
-    // 3. 8th km onwards at constant 20/km (Cost for first 7km is 230)
-    return 230 + ((km - 7) * 20);
+    return 230 + (km - 7) * 20;
   };
 
-  // Calculations & Distance
-  const userLat = typeof window !== 'undefined' ? parseFloat(localStorage.getItem('user_detected_lat')) : 0;
-  const userLng = typeof window !== 'undefined' ? parseFloat(localStorage.getItem('user_detected_lng')) : 0;
-  const calculatedDistance = calculateDistance(BRANCH_LAT, BRANCH_LNG, userLat, userLng);
+  const calculatedDistance =
+    Number.isFinite(userLat) && Number.isFinite(userLng)
+      ? calculateDistance(BRANCH_LAT, BRANCH_LNG, userLat, userLng)
+      : NaN;
 
-  const normalCartItems = cartItems.filter(item => item.id !== 'free-promo-item-4');
-  const subtotal = normalCartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const deliveryCharges = cartItems.length > 0 ? getDynamicDeliveryCharges(calculatedDistance) : 0;
-  
-  // 13% GST
+  const normalCartItems = cartItems.filter((item) => item.id !== 'free-promo-item-4');
+  const subtotal = normalCartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const deliveryCharges =
+    hasLocation && Number.isFinite(calculatedDistance) && cartItems.length > 0
+      ? getDynamicDeliveryCharges(calculatedDistance)
+      : 0;
+
   const gstAmount = Math.round(subtotal * 0.13);
   const total = subtotal > 0 ? subtotal + gstAmount + deliveryCharges : 0;
 
   const getMinDateTime = () => {
-    const now = new Date();
-    now.setHours(now.getHours() + 1);
-    return now.toISOString().slice(0, 16);
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const isValidPhone = /^3\d{9}$/.test(phone);
+
+  const handlePhoneChange = (e) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.startsWith('92')) val = val.slice(2);
+    if (val.startsWith('0')) val = val.slice(1);
+    val = val.slice(0, 10);
+    setPhone(val);
   };
 
   const triggerConfetti = () => {
@@ -192,43 +251,65 @@ export default function CartPage() {
       id: i,
       left: Math.random() * 100 + '%',
       bg: ['#f97316', '#ef4444', '#eab308', '#22c55e', '#3b82f6', '#ec4899'][Math.floor(Math.random() * 6)],
-      animDuration: (Math.random() * 2 + 2) + 's',
-      delay: (Math.random() * 0.5) + 's'
+      animDuration: Math.random() * 2 + 2 + 's',
+      delay: Math.random() * 0.5 + 's',
     }));
     setConfettiPieces(pieces);
   };
 
+  /* --------------------------- order confirm --------------------------- */
   const handleConfirmOrder = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    if (isSubmitting) return;
 
     const detectedLat = parseFloat(localStorage.getItem('user_detected_lat'));
     const detectedLng = parseFloat(localStorage.getItem('user_detected_lng'));
     if (!Number.isFinite(detectedLat) || !Number.isFinite(detectedLng)) {
-      alert("We cannot proceed with your order because your location is not set. Please allow location access or manually set your location to continue.");
+      showNotice(
+        'We cannot proceed with your order because your location is not set. Please allow location access or manually set your location to continue.'
+      );
       setHasLocation(false);
       return;
     }
 
-    let newErrors = {};
-
     const isOutOfArea = localStorage.getItem('out_of_delivery_area') === 'true';
     if (isOutOfArea) {
-      alert("Sorry, you are away from our delivery areas.");
+      showNotice('Sorry, you are away from our delivery areas.');
       return;
     }
 
     if (normalCartItems.length === 0) {
-      alert("Your cart is empty! Please add items from the menu first.");
+      showNotice('Your cart is empty! Please add items from the menu first.');
       return;
     }
-
     if (subtotal < 600) {
-      alert("Minimum order amount must be at least Rs. 600 to proceed.");
+      showNotice('Minimum order amount must be at least Rs. 600 to proceed.');
       return;
     }
 
-    if (!city) {
-      alert("Please select a city.");
+    const newErrors = {};
+    if (!name.trim()) newErrors.name = 'Enter your full name';
+    if (!phone || !isValidPhone) newErrors.phone = 'Enter a valid 10-digit mobile number starting with 3';
+    if (!city) newErrors.city = 'Select your city';
+    if (!address.trim()) newErrors.address = 'Enter your delivery address';
+    if (deliveryType === 'Scheduled') {
+      if (!scheduledDateTime) {
+        newErrors.schedule = 'Pick a delivery date and time';
+      } else {
+        const sel = new Date(scheduledDateTime);
+        if (Number.isFinite(sel.getTime()) && sel.getTime() < Date.now() + 60 * 60 * 1000) {
+          newErrors.schedule = 'Please choose a time at least 1 hour from now.';
+        }
+      }
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      const firstErrorElement = document.getElementById(Object.keys(newErrors)[0]);
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -237,7 +318,7 @@ export default function CartPage() {
 
       if (settingData) {
         if (settingData.is_open === false) {
-          alert("We Are Closed by management right now! Please order during working hours.");
+          showNotice('We Are Closed by management right now! Please order during working hours.');
           return;
         }
 
@@ -256,17 +337,17 @@ export default function CartPage() {
             } else {
               isOpen = currentMins >= openMins || currentMins < closeMins;
             }
-
             if (!isOpen) {
-              alert(`We Are Closed right now! Our operating hours are ${settingData.opening_time} to ${settingData.closing_time}.`);
+              showNotice(
+                `We Are Closed right now! Our operating hours are ${settingData.opening_time} to ${settingData.closing_time}.`
+              );
               return;
             }
           } else if (deliveryType === 'Scheduled') {
             if (!scheduledDateTime) {
-              alert("Please select a valid scheduled delivery time.");
+              showNotice('Please select a valid scheduled delivery time.');
               return;
             }
-
             const selectedDate = new Date(scheduledDateTime);
             const selectedMins = selectedDate.getHours() * 60 + selectedDate.getMinutes();
             let isWithin = false;
@@ -275,9 +356,10 @@ export default function CartPage() {
             } else {
               isWithin = selectedMins >= openMins || selectedMins < closeMins;
             }
-
             if (!isWithin) {
-              alert(`Please select an order time within our operating hours range (${settingData.opening_time} to ${settingData.closing_time}).`);
+              showNotice(
+                `Please select an order time within our operating hours range (${settingData.opening_time} to ${settingData.closing_time}).`
+              );
               return;
             }
           }
@@ -287,100 +369,173 @@ export default function CartPage() {
       console.error('Timing validation fallback check:', err);
     }
 
-    if (!name.trim()) newErrors.name = true;
-    if (!phone || phone.length !== 10) newErrors.phone = true;
-    if (!address.trim()) newErrors.address = true;
-    if (deliveryType === 'Scheduled' && !scheduledDateTime) newErrors.schedule = true;
-
-    setErrors(newErrors);
-
-    if (Object.keys(newErrors).length > 0) {
-      const firstErrorElement = document.getElementById(Object.keys(newErrors)[0]);
-      if (firstErrorElement) {
-        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } else {
-      try {
-        const { error } = await supabase.from('orders').insert([
-          {
-            customer_name: name,
-            phone: `+92${phone}`,
-            city: city,
-            address: address,
-            apartment: apartment,
-            detected_address: localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
-            latitude: parseFloat(localStorage.getItem('user_detected_lat')) || null,
-            longitude: parseFloat(localStorage.getItem('user_detected_lng')) || null,
-            delivery_distance: Number.isFinite(calculatedDistance) ? parseFloat(calculatedDistance.toFixed(1)) : null,
-            special_instructions: specialInstructions,
-            payment_method: paymentMethod,
-            delivery_type: deliveryType,
-            scheduled_time: deliveryType === 'Scheduled' ? scheduledDateTime : 'ASAP',
-            subtotal: subtotal,
-    tax_amount: gstAmount,
-    delivery_charges: deliveryCharges,
-    items: cartItems,
-    total_amount: total,
-    status: 'Pending'
-          }
-        ]);
-
-        if (error) {
-          alert('Failed to place order: ' + error.message);
-          return;
-        }
-
-        const finalOrderObject = {
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('orders').insert([
+        {
           customer_name: name,
           phone: `+92${phone}`,
           city: city,
           address: address,
           apartment: apartment,
-          detected_address: localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
+          detected_address:
+            localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
           latitude: parseFloat(localStorage.getItem('user_detected_lat')) || null,
           longitude: parseFloat(localStorage.getItem('user_detected_lng')) || null,
-          delivery_distance: Number.isFinite(calculatedDistance) ? parseFloat(calculatedDistance.toFixed(1)) : null,
+          delivery_distance: Number.isFinite(calculatedDistance)
+            ? parseFloat(calculatedDistance.toFixed(1))
+            : null,
           special_instructions: specialInstructions,
           payment_method: paymentMethod,
           delivery_type: deliveryType,
           scheduled_time: deliveryType === 'Scheduled' ? scheduledDateTime : 'ASAP',
-         subtotal: subtotal,
-    tax_amount: gstAmount,
-    delivery_charges: deliveryCharges,
-    items: cartItems,
-    total_amount: total,
-    created_at: new Date().toISOString()
-        };
-        localStorage.setItem('last_confirmed_order', JSON.stringify(finalOrderObject));
-        
-        if (subtotal > 1999) {
-          triggerConfetti();
-          setShowOfferModal(true);
-          setTimeout(() => {
-            setShowOfferModal(false);
-            localStorage.removeItem('food_cart');
-            window.location.href = '/receipt';
-          }, 4000);
-        } else {
-          localStorage.removeItem('food_cart');
-          window.location.href = '/receipt';
-        }
+          subtotal: subtotal,
+          tax_amount: gstAmount,
+          delivery_charges: deliveryCharges,
+          items: cartItems,
+          total_amount: total,
+          status: 'Pending',
+        },
+      ]);
 
-      } catch (err) {
-        console.error('Order submission error:', err);
-        alert('Something went wrong. Please try again.');
+      if (error) {
+        showNotice('Failed to place order: ' + error.message);
+        setIsSubmitting(false);
+        return;
       }
+
+      const finalOrderObject = {
+        customer_name: name,
+        phone: `+92${phone}`,
+        city: city,
+        address: address,
+        apartment: apartment,
+        detected_address:
+          localStorage.getItem('user_detected_address') || 'Not fetched via GPS',
+        latitude: parseFloat(localStorage.getItem('user_detected_lat')) || null,
+        longitude: parseFloat(localStorage.getItem('user_detected_lng')) || null,
+        delivery_distance: Number.isFinite(calculatedDistance)
+          ? parseFloat(calculatedDistance.toFixed(1))
+          : null,
+        special_instructions: specialInstructions,
+        payment_method: paymentMethod,
+        delivery_type: deliveryType,
+        scheduled_time: deliveryType === 'Scheduled' ? scheduledDateTime : 'ASAP',
+        subtotal: subtotal,
+        tax_amount: gstAmount,
+        delivery_charges: deliveryCharges,
+        items: cartItems,
+        total_amount: total,
+        created_at: new Date().toISOString(),
+      };
+      try {
+        localStorage.setItem('last_confirmed_order', JSON.stringify(finalOrderObject));
+      } catch {}
+
+      try {
+        localStorage.removeItem('food_cart');
+      } catch {}
+
+      if (subtotal > 1999) {
+        triggerConfetti();
+        setShowOfferModal(true);
+        setTimeout(() => {
+          setShowOfferModal(false);
+          window.location.href = '/receipt';
+        }, 4000);
+      } else {
+        window.location.href = '/receipt';
+      }
+    } catch (err) {
+      console.error('Order submission error:', err);
+      showNotice('Something went wrong. Please try again.');
+      setIsSubmitting(false);
     }
   };
 
+  /* --------------------------- shared UI tokens --------------------------- */
+  const cardCls =
+    'bg-[#fff8e7] dark:bg-[#1c1410] rounded-3xl p-5 sm:p-6 border-2 border-[#1a1210] dark:border-orange-500 shadow-[4px_4px_0_#1a1210] dark:shadow-[4px_4px_0_#f97316]';
+
+  const inputBase =
+    'w-full p-3.5 rounded-2xl bg-white dark:bg-[#120D0A] text-[#1a1210] dark:text-white border-2 font-medium text-xs sm:text-sm outline-none transition-all';
+  const inputOk =
+    'border-[#1a1210]/25 dark:border-orange-500/40 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15';
+  const inputErr =
+    'border-red-500 bg-red-500/5 focus:border-red-500 focus:ring-4 focus:ring-red-500/15';
+
+  const labelCls =
+    'block text-[11px] font-black uppercase tracking-widest text-[#1a1210]/60 dark:text-orange-200/70 mb-1.5';
+
+  const btnPrimary =
+    'w-full h-12 rounded-2xl bg-orange-600 text-white font-extrabold uppercase tracking-wide text-sm border-2 border-[#1a1210] shadow-[3px_3px_0_#1a1210] hover:bg-orange-700 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-orange-600';
+
+  const btnSecondary =
+    'w-full h-12 rounded-2xl bg-transparent text-[#1a1210] dark:text-orange-100 font-bold uppercase tracking-wide text-[12px] border-2 border-[#1a1210] dark:border-orange-500/60 hover:bg-[#1a1210]/5 dark:hover:bg-orange-500/10 transition';
+
+  /* --------------------------- render --------------------------- */
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#120D0A] text-gray-900 dark:text-gray-100 antialiased pb-44 lg:pb-32 relative z-0 transition-colors duration-500">
+    <div className="min-h-screen bg-[#fff8e7] dark:bg-[#120D0A] text-[#1a1210] dark:text-gray-100 antialiased pb-44 lg:pb-32 relative z-0 transition-colors duration-500">
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @keyframes fall {
+              0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+              100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+            }
+            .animate-fall {
+              animation-name: fall;
+              animation-timing-function: linear;
+              animation-fill-mode: forwards;
+            }
+            @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+            .animate-fade-in { animation: fadeIn .25s ease-out; }
+            @keyframes cartPop { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
+            .animate-cart-pop { animation: cartPop .22s cubic-bezier(.2,.8,.2,1); }
+            @media (prefers-reduced-motion: reduce) {
+              .animate-fall, .animate-fade-in, .animate-cart-pop { animation: none !important; }
+            }
+          `,
+        }}
+      />
 
-      <LocationPopup forceOpen={!hasLocation} onLocated={checkStoredLocation} />
+      <LocationPopup forceOpen onLocated={refreshLocation} />
 
+      {/* ============= NOTICE BANNER (replaces alert) ============= */}
+      {notice && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-[calc(100%-2rem)] max-w-md pointer-events-auto animate-cart-pop">
+          <div
+            role="alert"
+            className={`flex items-start gap-3 rounded-2xl px-4 py-3 border-2 border-[#1a1210] shadow-[3px_3px_0_#1a1210] ${
+              notice.type === 'error' ? 'bg-red-500 text-white' : 'bg-[#FFC21A] text-[#1a1210]'
+            }`}
+          >
+            <span className="text-lg leading-none mt-0.5">
+              {notice.type === 'error' ? '⚠️' : 'ℹ️'}
+            </span>
+            <p className="flex-1 text-[12.5px] font-black leading-snug tracking-tight">
+              {notice.text}
+            </p>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              aria-label="Dismiss"
+              className={`shrink-0 w-6 h-6 rounded-full grid place-items-center transition ${
+                notice.type === 'error' ? 'bg-white/25 hover:bg-white/40' : 'bg-[#1a1210]/10 hover:bg-[#1a1210]/20'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============= CONFETTI ============= */}
       {showOfferModal && (
         <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
-          {confettiPieces.map(p => (
+          {confettiPieces.map((p) => (
             <div
               key={p.id}
               className="absolute top-[-20px] w-3 h-3 rounded-full animate-fall"
@@ -389,104 +544,200 @@ export default function CartPage() {
                 backgroundColor: p.bg,
                 animationDuration: p.animDuration,
                 animationDelay: p.delay,
-                animationIterationCount: 'infinite'
+                animationIterationCount: 'infinite',
               }}
             />
           ))}
         </div>
       )}
 
+      {/* ============= OFFER MODAL ============= */}
       {showOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#18110e] border-2 border-orange-500 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl relative space-y-4">
-            <div className="absolute -top-4 -left-4 w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white font-black text-sm uppercase shadow-lg border-2 border-white animate-bounce">
+          <div className="bg-[#fff8e7] dark:bg-[#18110e] border-2 border-[#1a1210] dark:border-orange-500 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-[8px_8px_0_#1a1210] dark:shadow-[8px_8px_0_#f97316] relative space-y-4">
+            <div className="absolute -top-4 -left-4 w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white font-black text-sm uppercase shadow-[3px_3px_0_#1a1210] border-2 border-[#1a1210] animate-bounce">
               Free!
             </div>
-            <h3 className="text-2xl font-black uppercase text-orange-400 tracking-wide">Congratulations! 🎉</h3>
-            <p className="text-sm font-bold text-white leading-relaxed">
-              Congratulations! You've unlocked a special free offer item for your order exceeding Rs. 1999. This exclusive item has been automatically added to your cart and will be included in your delivery at no extra cost. Enjoy your meal and thank you for choosing us!
+            <h3 className={`${display.className} text-3xl font-extrabold uppercase tracking-tight text-orange-600 dark:text-orange-400`}>
+              Congratulations! 🎉
+            </h3>
+            <p className="text-sm font-bold text-[#1a1210]/80 dark:text-orange-100/80 leading-relaxed">
+              You&apos;ve unlocked a special free offer item for your order exceeding Rs. 1999. This
+              exclusive item has been automatically added to your cart and will be included in your
+              delivery at no extra cost. Enjoy your meal and thank you for choosing us!
             </p>
-            <div className="w-32 h-32 mx-auto bg-gray-900 rounded-2xl p-2 border border-orange-500/30 flex items-center justify-center">
+            <div className="w-32 h-32 mx-auto bg-white dark:bg-[#120D0A] rounded-2xl p-2 border-2 border-[#1a1210] dark:border-orange-500/60 shadow-[3px_3px_0_#1a1210] dark:shadow-[3px_3px_0_#f97316] flex items-center justify-center">
               <img src="/images/4.webp" alt="Free Offer Item" className="w-full h-full object-contain" />
             </div>
           </div>
         </div>
       )}
 
+      {/* ambient glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-orange-600/15 dark:bg-orange-600/25 rounded-full blur-[140px]"></div>
       </div>
 
-      <div className="bg-white/80 dark:bg-[#120D0A]/85 backdrop-blur-xl border-b border-gray-100 dark:border-orange-500/20 shadow-xs relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white uppercase">Review Cart</h1>
-            <p className="text-xs text-gray-500 dark:text-orange-200/70 font-medium">Verify your items and delivery preferences</p>
+      {/* ============= PAGE HEADER ============= */}
+      <div className="bg-[#fff8e7]/85 dark:bg-[#120D0A]/85 backdrop-blur-xl border-b-2 border-[#1a1210] dark:border-orange-500/40 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className={`${display.className} text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1a1210] dark:text-white uppercase leading-none`}>
+              Review Cart
+            </h1>
+            <p className="text-[11px] sm:text-xs text-[#1a1210]/60 dark:text-orange-200/70 font-bold uppercase tracking-widest mt-2">
+              Verify your items &amp; delivery preferences
+            </p>
           </div>
-          <Link href="/menu" className="bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/60 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors border border-orange-500/20">
+          <Link
+            href="/menu"
+            className="shrink-0 inline-flex items-center gap-1.5 bg-[#FFC21A] text-[#1a1210] px-4 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 border-[#1a1210] shadow-[3px_3px_0_#1a1210] hover:bg-amber-400 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition"
+          >
             ← Back To Menu
           </Link>
         </div>
       </div>
 
-      {!hasLocation && (
+      {/* ============= LOCATION WARNING ============= */}
+      {mounted && !hasLocation && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
-          <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 text-xs font-bold rounded-2xl p-3.5 text-center">
+          <div className="bg-red-500/10 border-2 border-red-500/60 text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-wider rounded-2xl p-3.5 text-center">
             📍 Please set your location to proceed with the order.
           </div>
         </div>
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start lg:items-stretch relative z-10">
-        
+
+        {/* ================= LEFT: ITEMS + FORM ================= */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 dark:border-orange-500/20">
-            <h2 className="text-lg font-black uppercase tracking-tight text-gray-800 dark:text-white mb-4">Selected Items</h2>
-            
-            {cartItems.length === 0 ? (
-              <div className="py-12 text-center space-y-3">
-                <div className="w-16 h-16 bg-orange-50 dark:bg-orange-950/60 text-orange-500 rounded-full flex items-center justify-center mx-auto border border-orange-500/20">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+
+          {/* ---------- Selected Items ---------- */}
+          <div className={cardCls}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`${display.className} text-xl font-extrabold uppercase tracking-tight text-[#1a1210] dark:text-white`}>
+                Selected Items
+              </h2>
+              {mounted && cartItems.length > 0 && (
+                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-[#FFC21A] text-[#1a1210] border-2 border-[#1a1210]">
+                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {!mounted ? (
+              <div className="py-6 space-y-4" aria-hidden="true">
+                <div className="flex items-center gap-4 animate-pulse">
+                  <div className="w-16 h-16 rounded-2xl bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-1/2 rounded-full bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                    <div className="h-3 w-1/3 rounded-full bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-gray-800 dark:text-white">Your cart is empty</h3>
-                <Link href="/menu" className="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all">
+                <div className="flex items-center gap-4 animate-pulse">
+                  <div className="w-16 h-16 rounded-2xl bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-2/3 rounded-full bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                    <div className="h-3 w-1/4 rounded-full bg-[#1a1210]/5 dark:bg-orange-500/10" />
+                  </div>
+                </div>
+              </div>
+            ) : cartItems.length === 0 ? (
+              <div className="py-12 text-center space-y-4">
+                <div className="w-16 h-16 bg-[#FFC21A] text-[#1a1210] rounded-2xl flex items-center justify-center mx-auto border-2 border-[#1a1210] shadow-[3px_3px_0_#1a1210]">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                  </svg>
+                </div>
+                <h3 className={`${display.className} text-lg font-extrabold text-[#1a1210] dark:text-white uppercase`}>
+                  Your cart is empty
+                </h3>
+                <Link
+                  href="/menu"
+                  className="inline-block bg-orange-600 hover:bg-orange-700 text-white font-extrabold px-6 py-3 rounded-2xl text-xs uppercase tracking-widest border-2 border-[#1a1210] shadow-[3px_3px_0_#1a1210] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition"
+                >
                   Go To Menu
                 </Link>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100 dark:divide-orange-500/15">
+              <div className="divide-y-2 divide-dashed divide-[#1a1210]/10 dark:divide-orange-500/15">
                 {cartItems.map((item) => (
-                  <div key={item.id} className={`py-4 flex items-center justify-between gap-4 ${item.isFree ? 'bg-orange-500/10 p-3 rounded-2xl border border-orange-500/30 my-2' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-gray-50 dark:bg-[#18110e] rounded-2xl p-1 flex-shrink-0 flex items-center justify-center border border-gray-100 dark:border-orange-500/20 relative">
+                  <div
+                    key={item.id}
+                    className={`py-4 flex items-center justify-between gap-4 ${
+                      item.isFree
+                        ? 'bg-[#FFC21A]/20 p-3 rounded-2xl border-2 border-[#1a1210] my-2'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative w-16 h-16 bg-white dark:bg-[#120D0A] rounded-2xl p-1.5 flex-shrink-0 flex items-center justify-center border-2 border-[#1a1210] dark:border-orange-500/40">
                         {item.isFree && (
-                          <span className="absolute -top-2 -left-2 bg-red-600 text-white text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full z-10 shadow">Free</span>
+                          <span className="absolute -top-2 -left-2 bg-red-600 text-white text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full z-10 shadow border border-[#1a1210]">
+                            Free
+                          </span>
                         )}
                         <img src={item.image} alt={item.title} className="w-full h-full object-contain" />
                       </div>
-                      <div>
-                        <h4 className="font-extrabold text-sm text-gray-900 dark:text-white uppercase line-clamp-1">{item.title}</h4>
-                        <span className="text-[11px] font-bold text-gray-400 dark:text-orange-200/60 uppercase tracking-widest">Size: {item.size}</span>
-                        <div className="text-orange-600 dark:text-orange-400 font-black text-xs mt-0.5">
-                          {item.isFree ? <span className="text-emerald-500 font-black">FREE (Rs. 0)</span> : `Rs. ${item.price * item.quantity}`}
+                      <div className="min-w-0">
+                        <h4 className="font-extrabold text-sm text-[#1a1210] dark:text-white uppercase line-clamp-1">
+                          {item.title}
+                        </h4>
+                        <span className="text-[10px] font-black text-[#1a1210]/50 dark:text-orange-200/60 uppercase tracking-widest">
+                          Size: {item.size}
+                        </span>
+                        <div className="text-orange-600 dark:text-orange-400 font-black text-sm mt-0.5">
+                          {item.isFree ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-black">
+                              FREE (Rs. 0)
+                            </span>
+                          ) : (
+                            `Rs. ${item.price * item.quantity}`
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
                       {!item.isFree ? (
                         <>
-                          <div className="flex items-center bg-gray-50 dark:bg-[#18110e] rounded-xl p-1 border border-gray-200 dark:border-orange-500/20">
-                            <button onClick={() => decreaseQty(item.id)} className="w-7 h-7 bg-white dark:bg-[#120D0A] rounded-lg font-bold text-gray-700 dark:text-orange-200 shadow-xs flex items-center justify-center text-sm cursor-pointer">-</button>
-                            <span className="w-7 text-center font-black text-xs text-gray-900 dark:text-white">{item.quantity}</span>
-                            <button onClick={() => increaseQty(item.id)} className="w-7 h-7 bg-white dark:bg-[#120D0A] rounded-lg font-bold text-gray-700 dark:text-orange-200 shadow-xs flex items-center justify-center text-sm cursor-pointer">+</button>
+                          <div className="flex items-center bg-white dark:bg-[#120D0A] rounded-xl p-1 border-2 border-[#1a1210] dark:border-orange-500/40">
+                            <button
+                              onClick={() => decreaseQty(item.id)}
+                              className="w-7 h-7 rounded-lg font-black text-[#1a1210] dark:text-orange-200 hover:bg-[#FFC21A] hover:text-[#1a1210] flex items-center justify-center text-sm cursor-pointer transition"
+                              aria-label="Decrease quantity"
+                            >
+                              −
+                            </button>
+                            <span className="w-7 text-center font-black text-xs text-[#1a1210] dark:text-white">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => increaseQty(item.id)}
+                              className="w-7 h-7 rounded-lg font-black text-[#1a1210] dark:text-orange-200 hover:bg-[#FFC21A] hover:text-[#1a1210] flex items-center justify-center text-sm cursor-pointer transition"
+                              aria-label="Increase quantity"
+                            >
+                              +
+                            </button>
                           </div>
-                          <button onClick={() => removeItem(item.id)} className="text-gray-400 dark:text-orange-200/60 hover:text-red-500 p-1.5 transition-colors cursor-pointer">
-                            <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-[#1a1210]/40 dark:text-orange-200/50 hover:text-red-500 p-1.5 transition-colors cursor-pointer"
+                            aria-label="Remove item"
+                          >
+                            <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              ></path>
+                            </svg>
                           </button>
                         </>
                       ) : (
-                        <span className="text-xs font-bold text-orange-400 px-3 py-1 bg-orange-500/20 rounded-xl">Auto Included</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1210] px-3 py-1.5 bg-[#FFC21A] rounded-xl border-2 border-[#1a1210]">
+                          Auto Included
+                        </span>
                       )}
                     </div>
                   </div>
@@ -495,128 +746,203 @@ export default function CartPage() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-[#1c1410]/70 dark:backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 dark:border-orange-500/20">
-            <h2 className="text-lg font-black uppercase tracking-tight text-gray-800 dark:text-white mb-5">Delivery Information</h2>
-            
+          {/* ---------- Delivery Information ---------- */}
+          <div className={cardCls}>
+            <h2 className={`${display.className} text-xl font-extrabold uppercase tracking-tight text-[#1a1210] dark:text-white mb-5`}>
+              Delivery Information
+            </h2>
+
             <form onSubmit={handleConfirmOrder} className="space-y-4">
               <div id="name">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Full Name</label>
-                <input 
-                  type="text" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
+                <label className={labelCls}>Full Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="Enter full name"
-                  className={`w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] text-gray-900 dark:text-white border-2 font-medium text-xs sm:text-sm outline-none transition-all ${errors.name ? 'border-red-500 bg-red-50/30' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500'}`}
+                  className={`${inputBase} ${errors.name ? inputErr : inputOk}`}
                 />
+                {errors.name && (
+                  <p className="mt-1.5 text-[11px] font-black text-red-500 uppercase tracking-wider">
+                    {errors.name}
+                  </p>
+                )}
               </div>
 
               <div id="phone">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Phone Number (10 Digits)</label>
-                <div className={`flex items-center rounded-2xl bg-gray-50 dark:bg-[#120D0A] border-2 overflow-hidden transition-all ${errors.phone ? 'border-red-500 bg-red-50/30' : 'border-gray-200 dark:border-orange-500/30 focus-within:border-orange-500'}`}>
-                  <span className="bg-gray-200 dark:bg-[#18110e] text-gray-700 dark:text-orange-200 font-bold px-3 py-3.5 text-xs sm:text-sm border-r border-gray-300 dark:border-orange-500/30">+92</span>
-                  <input 
-                    type="text" 
+                <label className={labelCls}>Phone Number (10 Digits)</label>
+                <div
+                  className={`flex items-center rounded-2xl overflow-hidden transition-all border-2 ${
+                    errors.phone
+                      ? 'border-red-500 bg-red-500/5'
+                      : 'border-[#1a1210]/25 dark:border-orange-500/40 focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-500/15'
+                  }`}
+                >
+                  <span className="bg-[#FFC21A] text-[#1a1210] font-black px-3 py-3.5 text-xs sm:text-sm border-r-2 border-[#1a1210]/30">
+                    +92
+                  </span>
+                  <input
+                    type="text"
                     maxLength={10}
-                    value={phone} 
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      if (val.length <= 10) setPhone(val);
-                    }}
+                    value={phone}
+                    onChange={handlePhoneChange}
                     placeholder="3001234567"
-                    className="w-full p-3.5 bg-transparent text-gray-900 dark:text-white font-medium text-xs sm:text-sm outline-none"
+                    className="w-full p-3.5 bg-white dark:bg-[#120D0A] text-[#1a1210] dark:text-white font-medium text-xs sm:text-sm outline-none"
                   />
                 </div>
+                {errors.phone && (
+                  <p className="mt-1.5 text-[11px] font-black text-red-500 uppercase tracking-wider">
+                    {errors.phone}
+                  </p>
+                )}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">City</label>
-                <select 
-                  value={city} 
+              <div id="city">
+                <label className={labelCls}>City</label>
+                <select
+                  value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] text-gray-900 dark:text-white border-2 border-gray-200 dark:border-orange-500/30 font-medium text-xs sm:text-sm outline-none focus:border-orange-500 cursor-pointer"
+                  className={`${inputBase} cursor-pointer ${errors.city ? inputErr : inputOk}`}
                 >
-                  <option value="" disabled>Select City</option>
+                  <option value="" disabled>
+                    Select City
+                  </option>
                   <option value="Islamabad">Islamabad</option>
                   <option value="Rawalpindi">Rawalpindi</option>
                 </select>
+                {errors.city && (
+                  <p className="mt-1.5 text-[11px] font-black text-red-500 uppercase tracking-wider">
+                    {errors.city}
+                  </p>
+                )}
               </div>
 
               <div id="address">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Delivery Address</label>
-                <textarea 
+                <label className={labelCls}>Delivery Address</label>
+                <textarea
                   rows="2"
-                  value={address} 
+                  value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="House #, Street #, Sector / Area"
-                  className={`w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] text-gray-900 dark:text-white border-2 font-medium text-xs sm:text-sm outline-none resize-none transition-all ${errors.address ? 'border-red-500 bg-red-50/30' : 'border-gray-200 dark:border-orange-500/30 focus:border-orange-500'}`}
+                  className={`${inputBase} resize-none ${errors.address ? inputErr : inputOk}`}
                 />
+                {errors.address && (
+                  <p className="mt-1.5 text-[11px] font-black text-red-500 uppercase tracking-wider">
+                    {errors.address}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Apartment / Suite / Unit (Optional)</label>
-                <input 
-                  type="text" 
-                  value={apartment} 
-                  onChange={(e) => setApartment(e.target.value)} 
+                <label className={labelCls}>Apartment / Suite / Unit (Optional)</label>
+                <input
+                  type="text"
+                  value={apartment}
+                  onChange={(e) => setApartment(e.target.value)}
                   placeholder="Apartment, suite, unit, building, floor, etc."
-                  className="w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] text-gray-900 dark:text-white border-2 border-gray-200 dark:border-orange-500/30 font-medium text-xs sm:text-sm outline-none focus:border-orange-500 transition-all"
+                  className={`${inputBase} ${inputOk}`}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Special Instructions (Suggested)</label>
-                <textarea 
+                <label className={labelCls}>Special Instructions (Suggested)</label>
+                <textarea
                   rows="2"
-                  value={specialInstructions} 
-                  onChange={(e) => setSpecialInstructions(e.target.value)} 
+                  value={specialInstructions}
+                  onChange={(e) => setSpecialInstructions(e.target.value)}
                   placeholder="Add any special instructions or delivery notes here..."
-                  className="w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] text-gray-900 dark:text-white border-2 border-gray-200 dark:border-orange-500/30 font-medium text-xs sm:text-sm outline-none focus:border-orange-500 transition-all resize-none"
+                  className={`${inputBase} resize-none ${inputOk}`}
                 />
               </div>
 
+              {/* Payment */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Payment Method</label>
+                <label className={labelCls}>Payment Method</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setPaymentMethod('COD')} className={`p-3 rounded-2xl font-bold uppercase tracking-wider text-xs border-2 transition-all cursor-pointer ${paymentMethod === 'COD' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-200 border-gray-200 dark:border-orange-500/30'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('COD')}
+                    className={`p-3 rounded-2xl font-black uppercase tracking-wider text-[11px] border-2 transition-all cursor-pointer ${
+                      paymentMethod === 'COD'
+                        ? 'bg-orange-600 text-white border-[#1a1210] shadow-[3px_3px_0_#1a1210]'
+                        : 'bg-white dark:bg-[#120D0A] text-[#1a1210] dark:text-orange-200 border-[#1a1210]/25 dark:border-orange-500/40 hover:border-orange-500'
+                    }`}
+                  >
                     Cash On Delivery
                   </button>
-                  <button type="button" disabled className="p-3 rounded-2xl font-bold uppercase tracking-wider text-xs border-2 border-gray-200 dark:border-orange-500/20 bg-gray-100 dark:bg-[#18110e] text-gray-400 dark:text-gray-600 filter blur-[0.4px] cursor-not-allowed">
+                  <button
+                    type="button"
+                    disabled
+                    className="p-3 rounded-2xl font-black uppercase tracking-wider text-[11px] border-2 border-[#1a1210]/15 dark:border-orange-500/20 bg-[#1a1210]/5 dark:bg-[#18110e] text-[#1a1210]/35 dark:text-orange-200/40 cursor-not-allowed"
+                  >
                     Bank Transfer
                   </button>
                 </div>
               </div>
 
+              {/* Delivery Time */}
               <div id="schedule">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-orange-200/70 mb-1.5">Delivery Time</label>
+                <label className={labelCls}>Delivery Time</label>
                 <div className="grid grid-cols-2 gap-3 mb-3">
-                  <button type="button" onClick={() => { setDeliveryType('ASAP'); setScheduledDateTime(''); }} className={`p-3 rounded-2xl font-bold uppercase tracking-wider text-xs border-2 transition-all cursor-pointer ${deliveryType === 'ASAP' ? 'bg-green-600 text-white border-green-600 shadow-sm' : 'bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-200 border-gray-200 dark:border-orange-500/30'}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryType('ASAP');
+                      setScheduledDateTime('');
+                    }}
+                    className={`p-3 rounded-2xl font-black uppercase tracking-wider text-[11px] border-2 transition-all cursor-pointer ${
+                      deliveryType === 'ASAP'
+                        ? 'bg-emerald-600 text-white border-[#1a1210] shadow-[3px_3px_0_#1a1210]'
+                        : 'bg-white dark:bg-[#120D0A] text-[#1a1210] dark:text-orange-200 border-[#1a1210]/25 dark:border-orange-500/40 hover:border-orange-500'
+                    }`}
+                  >
                     ASAP (30-45m)
                   </button>
-                  <button type="button" onClick={() => setDeliveryType('Scheduled')} className={`p-3 rounded-2xl font-bold uppercase tracking-wider text-xs border-2 transition-all cursor-pointer ${deliveryType === 'Scheduled' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-gray-50 dark:bg-[#120D0A] text-gray-700 dark:text-orange-200 border-gray-200 dark:border-orange-500/30'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryType('Scheduled')}
+                    className={`p-3 rounded-2xl font-black uppercase tracking-wider text-[11px] border-2 transition-all cursor-pointer ${
+                      deliveryType === 'Scheduled'
+                        ? 'bg-orange-600 text-white border-[#1a1210] shadow-[3px_3px_0_#1a1210]'
+                        : 'bg-white dark:bg-[#120D0A] text-[#1a1210] dark:text-orange-200 border-[#1a1210]/25 dark:border-orange-500/40 hover:border-orange-500'
+                    }`}
+                  >
                     Scheduled
                   </button>
                 </div>
 
                 {deliveryType === 'Scheduled' && (
-                  <input 
-                    type="datetime-local" 
-                    min={getMinDateTime()}
-                    value={scheduledDateTime}
-                    onChange={(e) => setScheduledDateTime(e.target.value)}
-                    className="w-full p-3.5 rounded-2xl bg-gray-50 dark:bg-[#120D0A] border-2 border-orange-500 font-bold text-xs outline-none text-gray-800 dark:text-white"
-                  />
+                  <>
+                    <input
+                      type="datetime-local"
+                      min={getMinDateTime()}
+                      value={scheduledDateTime}
+                      onChange={(e) => setScheduledDateTime(e.target.value)}
+                      className={`${inputBase} font-bold ${
+                        errors.schedule ? inputErr : 'border-orange-500 focus:border-orange-500'
+                      }`}
+                    />
+                    {errors.schedule && (
+                      <p className="mt-1.5 text-[11px] font-black text-red-500 uppercase tracking-wider">
+                        {errors.schedule}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </form>
           </div>
         </div>
 
+        {/* ================= RIGHT: SUMMARY ================= */}
         <div className="lg:col-span-5">
-          <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-white/95 dark:bg-[#120D0A]/95 backdrop-blur-md border-t border-gray-200 dark:border-orange-500/20 shadow-2xl lg:bg-transparent lg:p-0 lg:border-none lg:shadow-none lg:sticky lg:top-28">
-            <div className="bg-[#18110e] dark:bg-[#1c1410]/95 text-white rounded-3xl p-4 sm:p-6 shadow-2xl ring-1 ring-orange-500/30 space-y-3 backdrop-blur-xl max-w-7xl mx-auto">
-              
-              <div className="flex items-center justify-between border-b border-orange-500/20 pb-2.5">
-                <h3 className="text-lg font-black uppercase tracking-tight text-white hidden lg:block">Checkout Summary</h3>
+          <div className="fixed bottom-0 left-0 right-0 z-40 p-3 lg:bg-transparent lg:p-0 lg:border-none lg:shadow-none lg:sticky lg:top-28">
+            <div className="bg-[#18110e] dark:bg-[#1c1410] text-white rounded-3xl p-4 sm:p-6 border-2 border-[#1a1210] dark:border-orange-500 shadow-[4px_4px_0_#1a1210] dark:shadow-[4px_4px_0_#f97316] space-y-3 max-w-7xl mx-auto">
+
+              <div className="flex items-center justify-between border-b-2 border-dashed border-orange-500/30 pb-2.5">
+                <h3 className={`${display.className} text-lg font-extrabold uppercase tracking-tight text-white hidden lg:block`}>
+                  Checkout Summary
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowDetails(!showDetails)}
@@ -624,13 +950,27 @@ export default function CartPage() {
                 >
                   <span>Order Summary ({cartItems.length} items)</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-orange-500 font-black">Rs. {total}</span>
-                    <svg className={`w-4 h-4 transition-transform duration-300 ${showDetails ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                    <span className="text-[#FFC21A] font-black">Rs. {total}</span>
+                    <svg
+                      className={`w-4 h-4 transition-transform duration-300 ${showDetails ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path>
+                    </svg>
                   </div>
                 </button>
               </div>
-              
-              <div className={`space-y-2 text-xs sm:text-sm font-medium border-b border-orange-500/20 pb-3 text-orange-100/75 overflow-hidden transition-all duration-300 lg:!max-h-45 lg:!opacity-100 ${showDetails ? 'max-h-45 opacity-100 pt-1' : 'max-h-0 opacity-0 !border-b-0 !pb-0 lg:!border-b lg:!pb-3'}`}>
+
+              <div
+                className={`space-y-2 text-xs sm:text-sm font-medium border-b-2 border-dashed border-orange-500/30 pb-3 text-orange-100/75 overflow-hidden transition-all duration-300 lg:!max-h-45 lg:!opacity-100 ${
+                  showDetails
+                    ? 'max-h-45 opacity-100 pt-1'
+                    : 'max-h-0 opacity-0 !border-b-0 !pb-0 lg:!border-b lg:!pb-3'
+                }`}
+              >
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span className="font-bold text-white">Rs. {subtotal}</span>
@@ -646,43 +986,43 @@ export default function CartPage() {
                   <span className="font-bold text-white">Rs. {gstAmount}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Delivery Charges {Number.isFinite(calculatedDistance) && <span className="text-[10px] text-orange-400">({calculatedDistance.toFixed(1)} km)</span>}</span>
+                  <span>
+                    Delivery Charges{' '}
+                    {!hasLocation ? (
+                      <span className="text-[10px] text-[#FFC21A]/80">Set location to calculate</span>
+                    ) : Number.isFinite(calculatedDistance) ? (
+                      <span className="text-[10px] text-[#FFC21A]">
+                        ({calculatedDistance.toFixed(1)} km)
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="font-bold text-white">Rs. {deliveryCharges}</span>
                 </div>
               </div>
 
               <div className="hidden lg:flex justify-between items-center">
                 <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-orange-200/60 block">Total Amount</span>
-                  <span className="text-2xl font-black text-orange-500">Rs. {total}</span>
+                  <span className="text-[11px] font-black uppercase tracking-widest text-orange-200/60 block">
+                    Total Amount
+                  </span>
+                  <span className={`${display.className} text-3xl font-extrabold text-[#FFC21A]`}>
+                    Rs. {total}
+                  </span>
                 </div>
               </div>
 
-              <button 
+              <button
                 type="button"
                 onClick={handleConfirmOrder}
-                className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-3.5 rounded-2xl uppercase tracking-widest text-xs sm:text-sm shadow-lg shadow-orange-600/30 active:scale-95 transition-all cursor-pointer"
+                disabled={isSubmitting || normalCartItems.length === 0}
+                className={btnPrimary + ' !bg-orange-600 hover:!bg-orange-500'}
               >
-                Confirm Order
+                {isSubmitting ? 'Placing order...' : 'Confirm Order'}
               </button>
             </div>
           </div>
         </div>
-
       </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes fall {
-          0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
-        }
-        .animate-fall {
-          animation-name: fall;
-          animation-timing-function: linear;
-          animation-fill-mode: forwards;
-        }
-      `}} />
-
     </div>
   );
 }
