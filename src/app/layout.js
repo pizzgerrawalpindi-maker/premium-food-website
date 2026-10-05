@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import LocationPopup from "./components/LocationPopup";
 import RestaurantSchema from "./components/RestaurantSchema";
 import AnnouncementBar from "./components/AnnouncementBar";
+import StoreClosedGate from "./components/StoreClosedGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -103,6 +104,9 @@ export default function RootLayout({ children }) {
 
         <main className="grow">{children}</main>
         <Footer />
+
+        {/* Store closed full-screen gate — rendered last so it sits above everything */}
+        <StoreClosedGate />
       </body>
     </html>
   );
