@@ -326,11 +326,11 @@ export default function HomeClientWrapper({ initialData }) {
         <HeroSlider slides={sliderData} />
       </section>
 
-      {/* 2. Categories */}
+      {/* 2. Categories — grid on mobile (all tiles visible, no hidden scroll) */}
       {menuImages.length > 0 && (
         <section className={`${wrap} pt-14 sm:pt-24`}>
           <Heading title="Pick your craving" sub="Tap one and we'll take you straight to it." href="/menu" linkText="Full menu" />
-          <div className="flex gap-5 sm:gap-8 overflow-x-auto sm:flex-wrap sm:justify-center hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center">
             {menuImages.map((c, idx) => {
               const href = menuHref(c.category_slug);
               return (
@@ -338,20 +338,20 @@ export default function HomeClientWrapper({ initialData }) {
                   key={c.id ?? idx}
                   href={href}
                   onClick={() => rememberMenuTarget(c.category_slug)}
-                  className="group shrink-0 w-24 sm:w-36 flex flex-col items-center gap-3 text-center"
+                  className="group w-full flex flex-col items-center gap-2 sm:gap-3 text-center"
                 >
-                  <span className="nb nb-press relative block w-24 h-24 sm:w-36 sm:h-36 rounded-full overflow-hidden bg-white dark:bg-[#1c1410]">
+                  <span className="nb nb-press relative block w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full overflow-hidden bg-white dark:bg-[#1c1410]">
                     {c.img ? (
-                      <Pic src={c.img} alt="" sizes="(max-width: 640px) 96px, 144px" fit="object-fill" className="transition-transform duration-500 group-hover:scale-110" />
+                      <Pic src={c.img} alt="" sizes="(max-width: 640px) 80px, 128px" fit="object-fill" className="transition-transform duration-500 group-hover:scale-110" />
                     ) : (
                       <span className="absolute inset-0 grid place-items-center bg-orange-100 dark:bg-[#2a1d16]">
-                        <span className={`${display.className} text-3xl sm:text-4xl font-extrabold text-orange-700 dark:text-orange-300`}>
+                        <span className={`${display.className} text-2xl sm:text-3xl md:text-4xl font-extrabold text-orange-700 dark:text-orange-300`}>
                           {(c.name || '?').trim().charAt(0).toUpperCase()}
                         </span>
                       </span>
                     )}
                   </span>
-                  <span className="font-extrabold text-sm sm:text-lg leading-tight">{c.name}</span>
+                  <span className="font-extrabold text-xs sm:text-base md:text-lg leading-tight">{c.name}</span>
                 </Link>
               );
             })}

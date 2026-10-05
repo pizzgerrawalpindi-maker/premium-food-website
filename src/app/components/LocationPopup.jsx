@@ -12,8 +12,6 @@ const BRANCH_LNG = 73.0760369;
 const MAX_FALLBACK_RADIUS_KM = 40;
 const ALLOWED_ZONES = ['rawalpindi', 'islamabad', 'rawat', 'mandra'];
 
-/* Shared rule with cart/page.js — coordinates exist AND location confirmed
-   in this browser session. */
 const isLocationResolved = () => {
   try {
     const lat = parseFloat(localStorage.getItem('user_detected_lat'));
@@ -110,11 +108,6 @@ const IconSearch = ({ className = 'w-4 h-4' }) => (
     <path d="m20 20-3.5-3.5" />
   </svg>
 );
-const IconClose = ({ className = 'w-4 h-4' }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-    <path d="M6 18 18 6M6 6l12 12" />
-  </svg>
-);
 
 /* =====================================================================
    COMPONENT
@@ -140,15 +133,11 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
   const debounceRef = useRef(null);
   const primaryBtnRef = useRef(null);
   const lastRetryRef = useRef(0);
-
-  /* B4: keeps the latest `open` value available inside applyLocation
-     without adding it to the useCallback dependency list. */
   const openRef = useRef(false);
 
   const inAppBrowser = useRef(false);
   const platform = useRef('other');
 
-  /* ---------------- mount ---------------- */
   useEffect(() => {
     mountedRef.current = true;
     inAppBrowser.current = detectInAppBrowser();
@@ -163,7 +152,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     };
   }, []);
 
-  /* Keep openRef in sync with `open` */
   useEffect(() => {
     openRef.current = open;
   }, [open]);
@@ -216,7 +204,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     (lat, lng, addressLine, cityGuess, allowed, source = 'auto') => {
       if (typeof window === 'undefined') return;
 
-      /* B3: never store an empty address, or the "resolved" flag breaks. */
       const safeAddress =
         addressLine && String(addressLine).trim()
           ? String(addressLine)
@@ -238,11 +225,8 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
 
       window.dispatchEvent(new Event('locationDetected'));
 
-      /* B4: if the modal is NOT open (silent detection), act fast and only
-         pop up if we need to warn about out-of-area. */
       if (!openRef.current) {
         if (onLocated) onLocated();
-
         if (!allowed && sessionStorage.getItem('out_area_notice_shown') !== '1') {
           sessionStorage.setItem('out_area_notice_shown', '1');
           setDetectedAddress(formatTitleCase(safeAddress));
@@ -252,7 +236,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
         return;
       }
 
-      /* Modal is open → keep the existing success → 1.4s → close flow. */
       setDetectedAddress(formatTitleCase(safeAddress));
       setStage('success');
 
@@ -319,7 +302,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
 
       if (code === 1) {
         const state = await queryPermissionState();
-        /* B8: guard after await */
         if (!mountedRef.current) return;
         setStage(state === 'denied' ? 'blocked' : 'dismissed');
         return;
@@ -332,14 +314,14 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
         setStage('error');
         setErrorMsg(
           err.afterRetry
-            ? 'Location is taking too long. Try again or enter your address manually.'
-            : 'Location detection timed out. Please try again.'
+            ? 'Location is taking too long. Please check your device location, then try again.'
+            : 'Location detection timed out. Please check your device location and try again.'
         );
         return;
       }
 
       setStage('error');
-      setErrorMsg('Location detection failed. Please try again.');
+      setErrorMsg('Location detection failed. Please check your device location and try again.');
     },
     [queryPermissionState]
   );
@@ -387,8 +369,7 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     [getPositionWithRetry, reverseGeocode, handleDetectionError, applyLocation]
   );
 
-  /* ---------------- manual search (debounced) ----------------
-     B8: performManualSearch is defined above the effect that uses it. */
+  /* ---------------- manual search (debounced) ---------------- */
   const performManualSearch = useCallback(async (q) => {
     if (searchAbortRef.current) searchAbortRef.current.abort();
     const ac = new AbortController();
@@ -446,20 +427,15 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     (async () => {
       try {
         if (!forceOpen) {
-          /* B5: on /cart the cart page has its own forced instance. */
           if (
             typeof window !== 'undefined' &&
             window.location.pathname.startsWith('/cart')
           ) {
             return;
           }
-
-          /* B3/B7: use shared resolved rule. */
           if (isLocationResolved()) return;
-          if (sessionStorage.getItem('location_skipped') === '1') return;
           if (sessionStorage.getItem('location_manual_session') === '1') return;
         } else {
-          /* B7: forced mode - nothing to do if already resolved. */
           if (isLocationResolved()) return;
         }
 
@@ -551,37 +527,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     return () => clearTimeout(t);
   }, [open, stage]);
 
-  /* ---------------- skip ---------------- */
-  const handleSkip = useCallback(() => {
-    if (forceOpen) return;
-    try {
-      sessionStorage.setItem('location_skipped', '1');
-    } catch {
-      /* ignore */
-    }
-    setOpen(false);
-  }, [forceOpen]);
-
-  /* ---------------- ESC (soft mode only) ---------------- */
-  useEffect(() => {
-    if (!open || forceOpen) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') handleSkip();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, forceOpen, handleSkip]);
-
-  const handlePickManual = (result) => {
-    const lat = parseFloat(result.lat);
-    const lon = parseFloat(result.lon);
-    if (Number.isNaN(lat) || Number.isNaN(lon)) return;
-
-    const textMatch = isAllowedZone(result.display_name);
-    const distanceMatch = haversineKm(BRANCH_LAT, BRANCH_LNG, lat, lon) <= MAX_FALLBACK_RADIUS_KM;
-    applyLocation(lat, lon, result.display_name, result.display_name, textMatch || distanceMatch, 'manual');
-  };
-
   /* ---------------- copy link ---------------- */
   const handleCopyLink = async () => {
     try {
@@ -594,7 +539,16 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     }
   };
 
-  /* ---------------- derived UI strings ---------------- */
+  const handlePickManual = (result) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+
+    const textMatch = isAllowedZone(result.display_name);
+    const distanceMatch = haversineKm(BRANCH_LAT, BRANCH_LNG, lat, lon) <= MAX_FALLBACK_RADIUS_KM;
+    applyLocation(lat, lon, result.display_name, result.display_name, textMatch || distanceMatch, 'manual');
+  };
+
   const isInApp = inAppBrowser.current;
   const platformLabel = platform.current;
 
@@ -675,7 +629,7 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
     detecting: 'When your phone asks, tap Allow and choose Precise.',
     dismissed: 'To deliver to your door we need to know where you are.',
     blocked: 'Follow these steps to allow location access.',
-    gps_off: "Your phone's location is turned off.",
+    gps_off: 'Your phone’s location is turned off. Please enable it to detect your address.',
     error: errorMsg,
     manual: 'Search a nearby landmark, or use your current location.',
     success: 'We found you — happy ordering!',
@@ -718,7 +672,8 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
         aria-modal="true"
         aria-labelledby="lp-title"
       >
-        <div className="lp-backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={forceOpen ? undefined : handleSkip} />
+        {/* Backdrop — no click-to-close anymore */}
+        <div className="lp-backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
         <div
           className="lp-sheet relative w-full sm:max-w-md bg-[#fff8e7] dark:bg-[#18110e] text-[#1a1210] dark:text-white border-2 border-[#1a1210] dark:border-orange-500 rounded-t-3xl sm:rounded-3xl shadow-[6px_6px_0_#1a1210] dark:shadow-[6px_6px_0_#f97316] overflow-hidden"
@@ -729,17 +684,7 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
             <span className="w-10 h-1.5 rounded-full bg-[#1a1210]/30 dark:bg-orange-500/40" />
           </div>
 
-          {/* Close button — soft mode only */}
-          {!forceOpen && (
-            <button
-              type="button"
-              onClick={handleSkip}
-              aria-label="Close"
-              className="absolute top-3 right-3 w-9 h-9 rounded-full grid place-items-center bg-[#1a1210]/5 dark:bg-orange-500/10 text-[#1a1210] dark:text-orange-300 hover:bg-[#1a1210]/10 dark:hover:bg-orange-500/20 transition"
-            >
-              <IconClose />
-            </button>
-          )}
+          {/* NOTE: X close button removed intentionally — popup stays until location is set. */}
 
           <div className="px-5 sm:px-7 pt-4 pb-5 sm:pt-6 space-y-4">
             {/* In-app browser warning */}
@@ -812,7 +757,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
               </div>
             )}
 
-            {/* B1: only 'blocked' shows the blocked-steps block */}
             {stage === 'blocked' && (
               <div className="space-y-2 pt-1">
                 <ol className="space-y-2">
@@ -1009,7 +953,6 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
                   </>
                 ) : (
                   <>
-                    {/* B6: forced mode must let the customer leave the cart page */}
                     <button
                       ref={primaryBtnRef}
                       type="button"
@@ -1035,18 +978,7 @@ export default function LocationPopup({ forceOpen = false, onLocated } = {}) {
               </div>
             )}
 
-            {/* Skip link — soft mode only, hidden on out_of_area & success */}
-            {!forceOpen && stage !== 'out_of_area' && stage !== 'success' && (
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={handleSkip}
-                  className="text-[11px] font-bold uppercase tracking-widest text-[#1a1210]/55 dark:text-orange-200/55 hover:text-[#1a1210] dark:hover:text-orange-100 underline underline-offset-4 transition"
-                >
-                  Skip for now
-                </button>
-              </div>
-            )}
+            {/* NOTE: "Skip for now" removed intentionally — popup stays until location set. */}
           </div>
         </div>
       </div>

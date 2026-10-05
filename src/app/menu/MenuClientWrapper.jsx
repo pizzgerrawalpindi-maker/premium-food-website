@@ -241,7 +241,11 @@ export default function MenuClientWrapper({ initialCategories, itemsByCategory }
     const clearTimers = () => {
       while (timers.length) clearTimeout(timers.pop());
     };
-    const onUserInterrupt = () => { clearTimers(); };
+   const onUserInterrupt = () => {
+  clearTimers();
+  programmaticScrollRef.current = false;
+  clearTimeout(scrollEndTimerRef.current);
+};
 
     const instantScroll = (id) => {
       const el = document.getElementById(id);

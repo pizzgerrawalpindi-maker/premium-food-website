@@ -6,6 +6,7 @@ import AdminAuthGate from './AdminAuthGate';
 import OfferManager from './OfferManager';
 import HideOptionsModal from './HideOptionsModal';
 import HiddenItemsTab from './HiddenItemsTab';
+import PageEditor from './PageEditor';
 import { slugify, makeUniqueSlug } from '@/lib/menuSlug';
 import { getVisibilityInfo, hasSchedule } from '@/lib/visibility';
 
@@ -44,6 +45,7 @@ const icons = {
   alert: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01',
   chevronDown: 'M6 9l6 6 6-6',
   sparkles: 'M12 3l1.9 5.7L19.6 10l-5.7 1.9L12 17.6l-1.9-5.7L4.4 10l5.7-1.9L12 3z',
+  pages: 'M4 4h11l5 5v11a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M15 4v5h5',
 };
 
 /* ============================================================
@@ -395,7 +397,7 @@ function AdminDashboardContent() {
   const [orderSearch, setOrderSearch] = useState('');
 
   /* ---------- Smart hide state ---------- */
-  const [hideModal, setHideModal] = useState(null); // { kind, row, mode: 'hide' | 'schedule' } or null
+  const [hideModal, setHideModal] = useState(null);
   const [nowTick, setNowTick] = useState(null);
 
   useEffect(() => {
@@ -748,7 +750,7 @@ function AdminDashboardContent() {
     fetchInitialData();
   };
 
-  /* ---------- Toggle hidden (simple tables: sliders / promos / videos) ---------- */
+  /* ---------- Toggle hidden (simple tables) ---------- */
   const makeToggle = (table, setState) => async (row) => {
     const newValue = !row.is_hidden;
     await supabase.from(table).update({ is_hidden: newValue }).eq('id', row.id);
@@ -911,6 +913,7 @@ function AdminDashboardContent() {
     { id: 'settings', label: 'Settings', icon: icons.settings },
     { id: 'orders', label: 'Live Orders', icon: icons.orders, badge: pendingCount },
     { id: 'hidden', label: 'Hidden Items', icon: icons.eyeOff, badge: hiddenNowCount },
+    { id: 'pages', label: 'Pages', icon: icons.pages },
   ];
 
   return (
@@ -1597,6 +1600,9 @@ function AdminDashboardContent() {
             onClearSchedule={(kind, row) => saveVisibility(kind, row, CLEAR_SCHEDULE_PAYLOAD, 'Schedule removed')}
           />
         )}
+
+        {/* ================= TAB: PAGES ================= */}
+        {activeTab === 'pages' && <PageEditor />}
       </main>
     </div>
   );
